@@ -1,13 +1,17 @@
-name: Build LiveRecorder
+name: Build & Release LiveRecorder
 
 on:
   push:
     branches: [ main, master, dev ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
+  # ============================================
+  # 编译任务
+  # ============================================
   build:
     runs-on: ubuntu-latest
 
@@ -29,18 +33,24 @@ jobs:
       - name: 🔨 Build with Maven
         run: mvn clean package -B -V
 
-      - name: 📦 Upload artifact
+      - name: 📦 Upload build artifact
         if: matrix.java-version == 17
         uses: actions/upload-artifact@v4
         with:
-          name: LiveRecorder
+          name: LiveRecorder-build
           path: target/LiveRecorder-*.jar
-          retention-days: 30
+          retention-days: 7
 
+  # ============================================
+  # 发布任务 - 仅在推送 tag 时触发
+  # ============================================
   release:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write
 
     steps:
       - name: 📥 Checkout repository
@@ -56,10 +66,56 @@ jobs:
       - name: 🔨 Build with Maven
         run: mvn clean package -B -V
 
-      - name: 🎉 Create Release
+      - name: 📋 Extract version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: 📝 Generate changelog
+        id: changelog
+        run: |
+          # 获取上一个 tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -z "$PREV_TAG" ]; then
+            # 没有上一个 tag，获取所有提交
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            # 获取两个 tag 之间的提交
+            COMMITS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+          
+          # 写入文件（多行内容）
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 🎉 Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "LiveRecorder ${{ steps.version.outputs.tag }}"
+          body: |
+            ## 🎥 LiveRecorder ${{ steps.version.outputs.tag }}
+            
+            ### 📦 下载安装
+            1. 下载下方 `LiveRecorder-*.jar` 文件
+            2. 放入服务器 `plugins/` 目录
+            3. 重启服务器
+            
+            ### 📋 更新日志
+            ${{ steps.changelog.outputs.commits }}
+            
+            ### ⚙️ 兼容性
+            - 服务端：Spigot / Paper 1.16+
+            - Java：8+
+            
+            ---
+            **完整文档**: [README](https://github.com/httye/LiveRecorder#readme)
           files: target/LiveRecorder-*.jar
-          generate_release_notes: true
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
