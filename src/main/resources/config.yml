@@ -1,0 +1,69 @@
+# ============================================
+# LiveRecorder 配置文件
+# 无人机式自由录制者管理系统
+# ============================================
+
+# 镜头设置
+camera:
+  # 俯角（度数），0为水平，90为正上方
+  pitch: 30.0
+  # 镜头与目标玩家的水平距离（格）
+  distance: 5.0
+  # 镜头高度偏移（格），在俯角计算之外额外增加的高度
+  height-offset: 0.0
+  # 跟随速度系数（0.0~1.0），值越大跟随越紧密
+  follow-speed: 0.35
+  # 镜头位置到达阈值（格），小于此距离视为已到达
+  arrival-threshold: 0.3
+
+# 自动切换设置
+auto-switch:
+  # 是否启用自动切换
+  enabled: true
+  # 自动切换间隔（秒）
+  interval: 30
+  # 切换模式：RANDOM(随机) | SEQUENTIAL(顺序)
+  mode: RANDOM
+
+# 视觉反馈
+visual:
+  # 是否为目标玩家添加发光效果
+  target-glow: true
+  # 发光颜色：WHITE, ORANGE, MAGENTA, LIGHT_BLUE, YELLOW, LIME, PINK, GRAY, CYAN, PURPLE, BLUE, GREEN, RED
+  glow-color: YELLOW
+  # 是否在镜头位置显示粒子
+  camera-particle: false
+  # 粒子类型
+  particle-type: END_ROD
+  # ActionBar 状态显示
+  actionbar-enabled: true
+  # ActionBar 刷新间隔（tick）
+  actionbar-interval: 20
+
+# 录制者限制
+recorder-restrictions:
+  # 阻止打开背包
+  block-inventory: true
+  # 阻止打开容器（箱子、熔炉等）
+  block-container: true
+  # 阻止丢弃物品
+  block-drop-item: true
+  # 阻止交互（拉杆、按钮、门等）
+  block-interact: true
+  # 阻止攻击实体
+  block-attack: true
+  # 阻止放置方块
+  block-place: true
+  # 阻止破坏方块
+  block-break: true
+  # 阻止聊天
+  block-chat: true
+  # 阻止使用命令（白名单除外）
+  block-command: true
+  # 命令白名单
+  command-whitelist:
+    - lr
+    - liverecorder
+
+# 调试模式
+debug: false
