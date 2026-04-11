@@ -40,37 +40,6 @@
 |------|------|
 | 服务端 | Spigot / Paper 1.16+ |
 | Java | 8+ |
-| 构建工具 | Maven 3.6+ |
-
----
-
-## 🔨 编译
-
-### 方式一：本地编译
-
-```bash
-# 克隆仓库
-git clone https://github.com/httye/LiveRecorder.git
-cd LiveRecorder
-
-# 编译
-mvn clean package
-
-# 编译产物位于 target/LiveRecorder-1.0.0.jar
-```
-
-### 方式二：GitHub Actions 自动编译
-
-1. 将代码推送到 GitHub 仓库
-2. GitHub Actions 会自动触发编译（见 `.github/workflows/build.yml`）
-3. 编译成功后，在 Actions → Artifacts 中下载 `LiveRecorder` 产物
-4. 如需发布 Release，打一个 `v*` 格式的 tag 即可自动发布：
-   ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
-   ```
-
----
 
 ## 📦 安装
 
