@@ -29,7 +29,8 @@
 ### 🎨 视觉反馈
 - 自动为目标玩家添加发光效果（支持自定义颜色）
 - 可选粒子展示镜头位置
-- ActionBar 持续显示当前状态
+- 录制者 ActionBar 持续显示跟随状态
+- 目标玩家 ActionBar 显示"您正在被直播"提示（含录制者数量）
 
 ---
 
@@ -47,7 +48,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourname/LiveRecorder.git
+git clone https://github.com/httye/LiveRecorder.git
 cd LiveRecorder
 
 # 编译
@@ -129,8 +130,9 @@ visual:
   glow-color: YELLOW     # 发光颜色
   camera-particle: false # 是否在镜头位置显示粒子
   particle-type: END_ROD # 粒子类型
-  actionbar-enabled: true # ActionBar 状态显示
+  actionbar-enabled: true # ActionBar 状态显示（录制者）
   actionbar-interval: 20  # ActionBar 刷新间隔（tick）
+  target-actionbar: true  # 是否在被直播的目标玩家 ActionBar 显示"您正在被直播"提示
 
 # 录制者限制
 recorder-restrictions:

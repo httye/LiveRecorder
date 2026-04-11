@@ -35,10 +35,12 @@ visual:
   camera-particle: false
   # 粒子类型
   particle-type: END_ROD
-  # ActionBar 状态显示
+  # ActionBar 状态显示（录制者）
   actionbar-enabled: true
   # ActionBar 刷新间隔（tick）
   actionbar-interval: 20
+  # 是否在被直播的目标玩家 ActionBar 显示提示
+  target-actionbar: true
 
 # 录制者限制
 recorder-restrictions:

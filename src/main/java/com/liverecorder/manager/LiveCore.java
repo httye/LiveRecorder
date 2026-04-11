@@ -409,7 +409,7 @@ public class LiveCore {
     // ========== ActionBar 显示 ==========
 
     /**
-     * 更新所有录制者的 ActionBar
+     * 更新所有录制者和目标玩家的 ActionBar
      */
     private void updateActionBar() {
         for (RecorderBinding binding : bindings.values()) {
@@ -421,18 +421,40 @@ public class LiveCore {
             Player target = binding.getTarget();
             String targetName = target != null ? target.getName() : "无";
 
+            // 录制者 ActionBar：显示跟随状态
             String status = binding.isFollowing() ? "§a● 跟随中" : "§7○ 待机";
             String modeStr = binding.getMode() == RecorderBinding.Mode.AUTO ? "§e自动" : "§b手动";
 
-            String message = String.format(
+            String recorderMessage = String.format(
                     "§6LiveRecorder §7| %s §7| 目标: §f%s §7| 模式: %s",
                     status, targetName, modeStr
             );
 
             recorder.spigot().sendMessage(
                     net.md_5.bungee.api.ChatMessageType.ACTION_BAR,
-                    new net.md_5.bungee.api.chat.TextComponent(message)
+                    new net.md_5.bungee.api.chat.TextComponent(recorderMessage)
             );
+
+            // 目标玩家 ActionBar：显示"您正在被直播"提示
+            if (target != null && target.isOnline()) {
+                if (plugin.getConfig().getBoolean("visual.target-actionbar", true)) {
+                    // 统计跟拍该目标的录制者数量
+                    long recorderCount = bindings.values().stream()
+                            .filter(b -> b.isActive() && b.getTarget() != null
+                                    && b.getTarget().getUniqueId().equals(target.getUniqueId()))
+                            .count();
+
+                    String targetMessage = String.format(
+                            "§c§l🔴 您正在被直播 §7| §e%d 位录制者跟拍中",
+                            recorderCount
+                    );
+
+                    target.spigot().sendMessage(
+                            net.md_5.bungee.api.ChatMessageType.ACTION_BAR,
+                            new net.md_5.bungee.api.chat.TextComponent(targetMessage)
+                    );
+                }
+            }
         }
     }
 
