@@ -18,11 +18,18 @@ export default defineConfig({
       { text: '指南', link: '/guide/getting-started' },
       { text: '命令', link: '/commands/index' },
       { text: '配置', link: '/config/index' },
+      { text: '场景', link: '/scenarios/index' },
+      { text: '隐私', link: '/privacy/index' },
       { text: '问答', link: '/qa/index' },
       { text: 'API', link: '/api/index' },
       {
         text: '更多',
         items: [
+          { text: '更新日志', link: '/CHANGELOG.md' },
+          { text: '贡献指南', link: '/CONTRIBUTING.md' },
+          { text: '获取支持', link: '/SUPPORT.md' },
+          { text: '安全策略', link: '/SECURITY.md' },
+          { text: '行为准则', link: '/CODE_OF_CONDUCT.md' },
           { text: 'GitHub', link: 'https://github.com/httye/LiveRecorder' },
           { text: '发布日志', link: 'https://github.com/httye/LiveRecorder/releases' },
         ]
@@ -165,10 +172,13 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: '隐私概览', link: '/privacy/index' },
+            { text: '隐私概述', link: '/privacy/overview' },
             { text: '同意/拒绝机制', link: '/privacy/consent' },
             { text: '录制者隐身', link: '/privacy/invisibility' },
             { text: '直播日志', link: '/privacy/logs' },
             { text: '数据存储', link: '/privacy/storage' },
+            { text: '最佳实践', link: '/privacy/best-practices' },
+            { text: '常见问题', link: '/privacy/faq' },
           ]
         }
       ],

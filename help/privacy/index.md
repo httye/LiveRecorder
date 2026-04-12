@@ -145,10 +145,13 @@ plugins/LiveRecorder/privacy.db
 
 ## 详细说明
 
+- [隐私概述](./overview) - 隐私保护概述和重要性
 - [同意/拒绝机制](./consent) - 详细的同意/拒绝机制说明
 - [录制者隐身](./invisibility) - 录制者隐身功能详解
 - [直播日志](./logs) - 直播日志功能详解
 - [数据存储](./storage) - 数据存储详解
+- [最佳实践](./best-practices) - 隐私保护最佳实践
+- [常见问题](./faq) - 隐私保护常见问题解答
 
 ## 常见问题
 

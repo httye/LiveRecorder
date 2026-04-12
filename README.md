@@ -81,7 +81,7 @@ mvn clean package
 | [隐私保护](https://lr.hosh.dev/privacy/index) | 隐私功能说明 |
 | [常见问题](https://lr.hosh.dev/faq/index) | 问题解答 |
 | [API 参考](https://lr.hosh.dev/api/index) | 开发者 API |
-| [更新日志](./CHANGELOG.md) | 版本更新记录 |
+| [更新日志](help/CHANGELOG.md) | 版本更新记录 |
 
 ---
 
@@ -255,11 +255,11 @@ auto-switch:
 
 ## 🔗 更多链接
 
-- 📄 [更新日志](./CHANGELOG.md) - 查看版本更新记录
-- 🤝 [贡献指南](./CONTRIBUTING.md) - 了解如何贡献
-- 🆘 [获取支持](./SUPPORT.md) - 获取帮助和支持
-- 🛡️ [安全策略](./SECURITY.md) - 报告安全漏洞
-- 📜 [行为准则](./CODE_OF_CONDUCT.md) - 社区行为准则
+- 📄 [更新日志](help/CHANGELOG.md) - 查看版本更新记录
+- 🤝 [贡献指南](help/CONTRIBUTING.md) - 了解如何贡献
+- 🆘 [获取支持](help/SUPPORT.md) - 获取帮助和支持
+- 🛡️ [安全策略](help/SECURITY.md) - 报告安全漏洞
+- 📜 [行为准则](help/CODE_OF_CONDUCT.md) - 社区行为准则
 - 📜 [开源协议](./LICENSE) - MIT License
 - 💬 [GitHub Discussions](https://github.com/httye/LiveRecorder/discussions) - 参与讨论
 - 🐛 [GitHub Issues](https://github.com/httye/LiveRecorder/issues) - 报告问题
@@ -347,7 +347,7 @@ auto-switch:
 4. 📤 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 🎉 提交 Pull Request
 
-查看 [贡献指南](./CONTRIBUTING.md) 了解更多详情。
+查看 [贡献指南](help/CONTRIBUTING.md) 了解更多详情。
 
 ---
 
