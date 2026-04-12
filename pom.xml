@@ -18,6 +18,15 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <developers>
+        <developer>
+            <id>qiyue</id>
+            <name>七月</name>
+            <organization>七月个人制作组</organization>
+            <organizationUrl>https://github.com/httye</organizationUrl>
+        </developer>
+    </developers>
+
     <repositories>
         <repository>
             <id>spigot-repo</id>
@@ -31,6 +40,11 @@
             <artifactId>spigot-api</artifactId>
             <version>1.16.5-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.42.0.0</version>
         </dependency>
     </dependencies>
 

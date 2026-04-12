@@ -1,6 +1,9 @@
 package com.liverecorder.manager;
 
 import com.liverecorder.LiveRecorder;
+import com.liverecorder.database.DatabaseManager;
+import com.liverecorder.model.LiveLog;
+import com.liverecorder.model.PrivacySetting;
 import com.liverecorder.model.RecorderBinding;
 import com.liverecorder.util.CameraGeometry;
 import org.bukkit.Bukkit;
@@ -20,8 +23,10 @@ import java.util.stream.Collectors;
 public class LiveCore {
 
     private final LiveRecorder plugin;
+    private final DatabaseManager databaseManager;
     private final Map<UUID, RecorderBinding> bindings;    // 录制者UUID -> 绑定
     private final Set<UUID> registeredTargets;             // 已注册的目标玩家
+    private final Map<UUID, List<UUID>> pendingRequests;   // 待确认的请求（目标UUID -> 录制者UUID列表）
 
     private BukkitTask followTask;       // 跟随任务
     private BukkitTask autoSwitchTask;   // 自动切换任务
@@ -38,8 +43,10 @@ public class LiveCore {
 
     public LiveCore(LiveRecorder plugin) {
         this.plugin = plugin;
+        this.databaseManager = plugin.getDatabaseManager();
         this.bindings = new ConcurrentHashMap<>();
         this.registeredTargets = ConcurrentHashMap.newKeySet();
+        this.pendingRequests = new ConcurrentHashMap<>();
         loadConfig();
     }
 
@@ -132,15 +139,61 @@ public class LiveCore {
      * @param recorder 录制者
      * @param target   目标玩家
      * @param mode     绑定模式
-     * @return 是否绑定成功
+     * @return 绑定结果（0=成功，1=已绑定，2=拒绝，3=待确认）
      */
-    public boolean bindRecorder(Player recorder, Player target, RecorderBinding.Mode mode) {
+    public int bindRecorder(Player recorder, Player target, RecorderBinding.Mode mode) {
         UUID recorderId = recorder.getUniqueId();
+        UUID targetId = target.getUniqueId();
 
         // 检查录制者是否已绑定
         if (bindings.containsKey(recorderId)) {
-            return false;
+            return 1;
         }
+
+        // 获取目标玩家的隐私设置
+        PrivacySetting privacy = databaseManager.getPrivacySetting(targetId);
+
+        // 如果隐私设置不存在，创建默认设置
+        if (privacy == null) {
+            privacy = new PrivacySetting(targetId, target.getName());
+            databaseManager.savePrivacySetting(privacy);
+        }
+
+        // 检查玩家是否拒绝直播
+        if (privacy.hasDeclined()) {
+            recorder.sendMessage("§6[LiveRecorder] §c玩家 " + target.getName() + " 已拒绝被直播");
+            return 2;
+        }
+
+        // 如果玩家未设置隐私设置，发送确认请求
+        if (privacy.needsPrompt()) {
+            // 添加到待确认列表
+            pendingRequests.computeIfAbsent(targetId, k -> new ArrayList<>()).add(recorderId);
+
+            // 发送确认请求给目标玩家
+            target.sendMessage("§6[LiveRecorder] §e录制者 " + recorder.getName() + " 请求直播您的视角");
+            target.sendMessage("§6[LiveRecorder] §a输入 /lr accept §7同意直播");
+            target.sendMessage("§6[LiveRecorder] §c输入 /lr decline §7拒绝直播");
+
+            recorder.sendMessage("§6[LiveRecorder] §e已向 " + target.getName() + " 发送直播请求，请等待确认");
+
+            return 3;
+        }
+
+        // 玩家同意直播，执行绑定
+        return executeBind(recorder, target, mode);
+    }
+
+    /**
+     * 执行绑定操作
+     *
+     * @param recorder 录制者
+     * @param target   目标玩家
+     * @param mode     绑定模式
+     * @return 是否绑定成功
+     */
+    private int executeBind(Player recorder, Player target, RecorderBinding.Mode mode) {
+        UUID recorderId = recorder.getUniqueId();
 
         // 创建绑定
         RecorderBinding binding = new RecorderBinding(recorder, target, mode);
@@ -152,15 +205,29 @@ public class LiveCore {
         Location cameraLoc = geometry.calculateCameraLocation(target);
         recorder.teleport(cameraLoc);
 
-        // 设置录制者为旁观者模式（如果需要）
-        // recorder.setGameMode(GameMode.SPECTATOR);
+        // 设置录制者隐身（如果配置启用）
+        if (plugin.getConfig().getBoolean("privacy.recorder-invisible.enabled", true)) {
+            setRecorderInvisible(recorder, true);
+        }
+
+        // 记录日志
+        LiveLog log = new LiveLog(
+                0,
+                LiveLog.LogType.START,
+                recorderId,
+                recorder.getName(),
+                target.getUniqueId(),
+                target.getName(),
+                System.currentTimeMillis()
+        );
+        databaseManager.addLiveLog(log);
 
         plugin.getLogger().info(String.format(
                 "录制者 %s 已绑定到目标 %s (模式: %s)",
                 recorder.getName(), target.getName(), mode.name()
         ));
 
-        return true;
+        return 0;
     }
 
     /**
@@ -175,6 +242,26 @@ public class LiveCore {
 
         if (binding == null) {
             return false;
+        }
+
+        // 取消录制者隐身
+        if (plugin.getConfig().getBoolean("privacy.recorder-invisible.enabled", true)) {
+            setRecorderInvisible(recorder, false);
+        }
+
+        // 记录日志
+        Player target = binding.getTarget();
+        if (target != null) {
+            LiveLog log = new LiveLog(
+                    0,
+                    LiveLog.LogType.END,
+                    recorderId,
+                    recorder.getName(),
+                    target.getUniqueId(),
+                    target.getName(),
+                    System.currentTimeMillis()
+            );
+            databaseManager.addLiveLog(log);
         }
 
         cleanupBinding(binding);
@@ -503,5 +590,182 @@ public class LiveCore {
 
     public void setAutoSwitchMode(AutoSwitchMode mode) {
         this.autoSwitchMode = mode;
+    }
+
+    // ========== 隐身功能 ==========
+
+    /**
+     * 设置录制者隐身状态
+     *
+     * @param recorder   录制者
+     * @param invisible  是否隐身
+     */
+    private void setRecorderInvisible(Player recorder, boolean invisible) {
+        if (invisible) {
+            // 对所有其他玩家隐藏录制者
+            for (Player other : Bukkit.getOnlinePlayers()) {
+                if (!other.equals(recorder)) {
+                    other.hidePlayer(plugin, recorder);
+                }
+            }
+        } else {
+            // 对所有其他玩家显示录制者
+            for (Player other : Bukkit.getOnlinePlayers()) {
+                if (!other.equals(recorder)) {
+                    other.showPlayer(plugin, recorder);
+                }
+            }
+        }
+    }
+
+    /**
+     * 当新玩家加入时，更新隐身状态
+     *
+     * @param player 新加入的玩家
+     */
+    public void handlePlayerJoin(Player player) {
+        for (RecorderBinding binding : bindings.values()) {
+            Player recorder = binding.getRecorder();
+            if (recorder.isOnline() && plugin.getConfig().getBoolean("privacy.recorder-invisible.enabled", true)) {
+                player.hidePlayer(plugin, recorder);
+            }
+        }
+    }
+
+    // ========== 隐私确认 ==========
+
+    /**
+     * 玩家同意直播
+     *
+     * @param player 玩家
+     * @return 是否有待确认的请求被处理
+     */
+    public boolean acceptStreaming(Player player) {
+        UUID playerId = player.getUniqueId();
+        List<UUID> requesters = pendingRequests.remove(playerId);
+
+        if (requesters == null || requesters.isEmpty()) {
+            return false;
+        }
+
+        // 更新隐私设置为同意
+        PrivacySetting privacy = databaseManager.getPrivacySetting(playerId);
+        if (privacy == null) {
+            privacy = new PrivacySetting(playerId, player.getName());
+        }
+        privacy.setConsentStatus(PrivacySetting.ConsentStatus.ACCEPTED);
+        databaseManager.savePrivacySetting(privacy);
+
+        // 记录同意日志
+        LiveLog log = new LiveLog(
+                0,
+                LiveLog.LogType.ACCEPTED,
+                null,
+                null,
+                playerId,
+                player.getName(),
+                System.currentTimeMillis()
+        );
+        databaseManager.addLiveLog(log);
+
+        // 处理所有待确认的请求
+        for (UUID recorderId : requesters) {
+            Player recorder = Bukkit.getPlayer(recorderId);
+            if (recorder != null && recorder.isOnline()) {
+                // 默认使用手动模式
+                executeBind(recorder, player, RecorderBinding.Mode.MANUAL);
+                player.sendMessage("§6[LiveRecorder] §a已同意录制者 " + recorder.getName() + " 的直播请求");
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * 玩家拒绝直播
+     *
+     * @param player 玩家
+     * @return 是否有待确认的请求被处理
+     */
+    public boolean declineStreaming(Player player) {
+        UUID playerId = player.getUniqueId();
+        List<UUID> requesters = pendingRequests.remove(playerId);
+
+        if (requesters == null || requesters.isEmpty()) {
+            return false;
+        }
+
+        // 更新隐私设置为拒绝
+        PrivacySetting privacy = databaseManager.getPrivacySetting(playerId);
+        if (privacy == null) {
+            privacy = new PrivacySetting(playerId, player.getName());
+        }
+        privacy.setConsentStatus(PrivacySetting.ConsentStatus.DECLINED);
+        databaseManager.savePrivacySetting(privacy);
+
+        // 记录拒绝日志
+        LiveLog log = new LiveLog(
+                0,
+                LiveLog.LogType.DECLINED,
+                null,
+                null,
+                playerId,
+                player.getName(),
+                System.currentTimeMillis()
+        );
+        databaseManager.addLiveLog(log);
+
+        // 通知所有录制者
+        for (UUID recorderId : requesters) {
+            Player recorder = Bukkit.getPlayer(recorderId);
+            if (recorder != null && recorder.isOnline()) {
+                recorder.sendMessage("§6[LiveRecorder] §c玩家 " + player.getName() + " 拒绝了直播请求");
+            }
+        }
+
+        player.sendMessage("§6[LiveRecorder] §a已拒绝直播请求，以后也不会收到该录制者的请求");
+
+        return true;
+    }
+
+    /**
+     * 获取玩家的隐私设置
+     *
+     * @param player 玩家
+     * @return 隐私设置
+     */
+    public PrivacySetting getPlayerPrivacy(Player player) {
+        PrivacySetting privacy = databaseManager.getPrivacySetting(player.getUniqueId());
+        if (privacy == null) {
+            privacy = new PrivacySetting(player.getUniqueId(), player.getName());
+            databaseManager.savePrivacySetting(privacy);
+        }
+        return privacy;
+    }
+
+    /**
+     * 设置玩家的隐私状态
+     *
+     * @param player         玩家
+     * @param consentStatus  同意状态
+     * @return 是否成功
+     */
+    public boolean setPlayerPrivacy(Player player, PrivacySetting.ConsentStatus consentStatus) {
+        PrivacySetting privacy = databaseManager.getPrivacySetting(player.getUniqueId());
+        if (privacy == null) {
+            privacy = new PrivacySetting(player.getUniqueId(), player.getName());
+        }
+        privacy.setConsentStatus(consentStatus);
+        return databaseManager.savePrivacySetting(privacy);
+    }
+
+    /**
+     * 获取直播日志
+     *
+     * @param limit 数量限制
+     * @return 日志列表
+     */
+    public List<LiveLog> getLiveLogs(int limit) {
+        return databaseManager.getLiveLogs(limit);
     }
 }

@@ -69,3 +69,24 @@ recorder-restrictions:
 
 # 调试模式
 debug: false
+
+# 隐私设置
+privacy:
+  # 录制者隐身设置
+  recorder-invisible:
+    # 是否启用录制者自动隐身
+    enabled: true
+    # 隐身提示消息
+    invisibility-message: "§6[LiveRecorder] §a你已隐身，其他玩家无法看到你"
+  # 直播日志设置
+  live-logs:
+    # 是否启用日志记录
+    enabled: true
+    # 日志保留数量（清理时保留的条数）
+    keep-count: 100
+  # 隐私同意提示
+  consent-prompt:
+    # 是否启用同意确认提示
+    enabled: true
+    # 请求超时时间（秒）
+    timeout: 60

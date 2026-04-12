@@ -54,3 +54,11 @@ Desktop.ini
 *.zip
 *.tar.gz
 *.rar
+
+# VitePress
+help/node_modules/
+help/.vitepress/dist/
+help/.vitepress/cache/
+
+# Database
+plugins/LiveRecorder/privacy.db

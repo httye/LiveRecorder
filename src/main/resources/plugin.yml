@@ -3,19 +3,25 @@ version: ${project.version}
 main: com.liverecorder.LiveRecorder
 api-version: 1.16
 description: 无人机式自由录制者管理系统 - 面向直播/录屏场景
-author: LiveRecorder Team
+author: 七月个人制作组
 
 commands:
   liverecorder:
     description: LiveRecorder 主命令
-    usage: /<command> <bind|unbind|list|mode|switch|reload>
+    usage: /<command> <bind|unbind|list|mode|switch|reload|accept|decline|privacy|setprivacy|logs>
     aliases: [lr]
-    permission: liverecorder.admin
+    permission: liverecorder.use
 
 permissions:
   liverecorder.admin:
-    description: 允许使用所有 LiveRecorder 命令
+    description: 允许使用所有 LiveRecorder 管理命令
     default: op
+    children:
+      liverecorder.use: true
+      liverecorder.recorder: true
+  liverecorder.use:
+    description: 允许使用基本 LiveRecorder 命令（accept, decline, privacy, setprivacy）
+    default: true
   liverecorder.recorder:
     description: 录制者权限
     default: false

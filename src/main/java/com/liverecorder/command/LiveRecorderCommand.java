@@ -30,11 +30,6 @@ public class LiveRecorderCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("liverecorder.admin")) {
-            sender.sendMessage("§6[LiveRecorder] §c你没有权限使用此命令");
-            return true;
-        }
-
         if (args.length == 0) {
             sendHelp(sender);
             return true;
@@ -60,6 +55,21 @@ public class LiveRecorderCommand implements CommandExecutor {
                 break;
             case "reload":
                 handleReload(sender);
+                break;
+            case "accept":
+                handleAccept(sender);
+                break;
+            case "decline":
+                handleDecline(sender);
+                break;
+            case "privacy":
+                handlePrivacy(sender);
+                break;
+            case "setprivacy":
+                handleSetPrivacy(sender, args);
+                break;
+            case "logs":
+                handleLogs(sender, args);
                 break;
             default:
                 sendHelp(sender);
@@ -117,14 +127,26 @@ public class LiveRecorderCommand implements CommandExecutor {
         }
 
         // 执行绑定
-        boolean success = liveCore.bindRecorder(recorder, target, mode);
+        int result = liveCore.bindRecorder(recorder, target, mode);
 
-        if (success) {
-            sender.sendMessage("§6[LiveRecorder] §a录制者 §f" + recorder.getName() + " §a已绑定到目标 §f" + target.getName() + " §a(模式: §e" + mode.name() + "§a)");
-            recorder.sendMessage("§6[LiveRecorder] §a你已被绑定为录制者，目标: §f" + target.getName() + " §a(模式: §e" + mode.name() + "§a)");
-            target.sendMessage("§6[LiveRecorder] §a录制者 §f" + recorder.getName() + " §a已开始跟随你");
-        } else {
-            sender.sendMessage("§6[LiveRecorder] §c绑定失败");
+        switch (result) {
+            case 0: // 成功
+                sender.sendMessage("§6[LiveRecorder] §a录制者 §f" + recorder.getName() + " §a已绑定到目标 §f" + target.getName() + " §a(模式: §e" + mode.name() + "§a)");
+                recorder.sendMessage("§6[LiveRecorder] §a你已被绑定为录制者，目标: §f" + target.getName() + " §a(模式: §e" + mode.name() + "§a)");
+                target.sendMessage("§6[LiveRecorder] §a录制者 §f" + recorder.getName() + " §a已开始跟随你");
+                break;
+            case 1: // 已绑定
+                sender.sendMessage("§6[LiveRecorder] §c录制者 " + recorder.getName() + " 已有绑定，请先解绑");
+                break;
+            case 2: // 拒绝
+                sender.sendMessage("§6[LiveRecorder] §c玩家 " + target.getName() + " 已拒绝被直播");
+                break;
+            case 3: // 待确认
+                sender.sendMessage("§6[LiveRecorder] §e已向 " + target.getName() + " 发送直播请求，请等待确认");
+                break;
+            default:
+                sender.sendMessage("§6[LiveRecorder] §c绑定失败");
+                break;
         }
     }
 
@@ -300,6 +322,174 @@ public class LiveRecorderCommand implements CommandExecutor {
         sender.sendMessage("§e/lr mode <录制者> <auto|manual> §7- 切换绑定模式");
         sender.sendMessage("§e/lr switch <录制者> <新目标> §7- 手动切换目标");
         sender.sendMessage("§e/lr reload §7- 重载配置");
+        sender.sendMessage("§e/lr accept §7- 同意直播请求");
+        sender.sendMessage("§e/lr decline §7- 拒绝直播请求");
+        sender.sendMessage("§e/lr privacy §7- 查看隐私设置");
+        sender.sendMessage("§e/lr setprivacy <accept|decline|unset> §7- 设置隐私状态");
+        sender.sendMessage("§e/lr logs [数量] §7- 查看直播日志");
         sender.sendMessage("§6§l======================================");
+    }
+
+    // ========== 隐私相关命令 ==========
+
+    /**
+     * 同意直播请求
+     * /lr accept
+     */
+    private void handleAccept(CommandSender sender) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage("§6[LiveRecorder] §c只有玩家可以使用此命令");
+            return;
+        }
+
+        Player player = (Player) sender;
+        boolean success = plugin.getLiveCore().acceptStreaming(player);
+
+        if (!success) {
+            sender.sendMessage("§6[LiveRecorder] §c没有待确认的直播请求");
+        }
+    }
+
+    /**
+     * 拒绝直播请求
+     * /lr decline
+     */
+    private void handleDecline(CommandSender sender) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage("§6[LiveRecorder] §c只有玩家可以使用此命令");
+            return;
+        }
+
+        Player player = (Player) sender;
+        boolean success = plugin.getLiveCore().declineStreaming(player);
+
+        if (!success) {
+            sender.sendMessage("§6[LiveRecorder] §c没有待确认的直播请求");
+        }
+    }
+
+    /**
+     * 查看隐私设置
+     * /lr privacy
+     */
+    private void handlePrivacy(CommandSender sender) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage("§6[LiveRecorder] §c只有玩家可以使用此命令");
+            return;
+        }
+
+        Player player = (Player) sender;
+        com.liverecorder.model.PrivacySetting privacy = plugin.getLiveCore().getPlayerPrivacy(player);
+
+        sender.sendMessage("§6§l========== 隐私设置 ==========");
+        sender.sendMessage("§7玩家: §f" + privacy.getPlayerName());
+        sender.sendMessage("§7隐私状态: " + getConsentStatusDisplay(privacy.getConsentStatus()));
+        sender.sendMessage("§7隐身: " + (privacy.isInvisible() ? "§a是" : "§c否"));
+        sender.sendMessage("§7最后更新: §f" + new java.util.Date(privacy.getLastUpdated()).toLocaleString());
+        sender.sendMessage("§6§l=================================");
+    }
+
+    /**
+     * 获取同意状态的显示文本
+     */
+    private String getConsentStatusDisplay(com.liverecorder.model.PrivacySetting.ConsentStatus status) {
+        switch (status) {
+            case ACCEPTED:
+                return "§a同意直播";
+            case DECLINED:
+                return "§c拒绝直播";
+            case UNSET:
+                return "§e未设置（需确认）";
+            default:
+                return "§7未知";
+        }
+    }
+
+    /**
+     * 设置隐私状态
+     * /lr setprivacy <accept|decline|unset>
+     */
+    private void handleSetPrivacy(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage("§6[LiveRecorder] §c只有玩家可以使用此命令");
+            return;
+        }
+
+        if (args.length < 2) {
+            sender.sendMessage("§6[LiveRecorder] §c用法: /lr setprivacy <accept|decline|unset>");
+            return;
+        }
+
+        Player player = (Player) sender;
+        com.liverecorder.model.PrivacySetting.ConsentStatus status;
+
+        switch (args[1].toLowerCase()) {
+            case "accept":
+                status = com.liverecorder.model.PrivacySetting.ConsentStatus.ACCEPTED;
+                break;
+            case "decline":
+                status = com.liverecorder.model.PrivacySetting.ConsentStatus.DECLINED;
+                break;
+            case "unset":
+                status = com.liverecorder.model.PrivacySetting.ConsentStatus.UNSET;
+                break;
+            default:
+                sender.sendMessage("§6[LiveRecorder] §c无效的状态，可选: accept, decline, unset");
+                return;
+        }
+
+        boolean success = plugin.getLiveCore().setPlayerPrivacy(player, status);
+
+        if (success) {
+            sender.sendMessage("§6[LiveRecorder] §a隐私设置已更新: " + getConsentStatusDisplay(status));
+        } else {
+            sender.sendMessage("§6[LiveRecorder] §c更新失败");
+        }
+    }
+
+    /**
+     * 查看直播日志
+     * /lr logs [数量]
+     */
+    private void handleLogs(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("liverecorder.admin")) {
+            sender.sendMessage("§6[LiveRecorder] §c你没有权限使用此命令");
+            return;
+        }
+
+        int limit = 10;
+        if (args.length >= 2) {
+            try {
+                limit = Integer.parseInt(args[1]);
+                if (limit < 1 || limit > 50) {
+                    sender.sendMessage("§6[LiveRecorder] §c数量必须在 1-50 之间");
+                    return;
+                }
+            } catch (NumberFormatException e) {
+                sender.sendMessage("§6[LiveRecorder] §c无效的数量");
+                return;
+            }
+        }
+
+        java.util.List<com.liverecorder.model.LiveLog> logs = plugin.getLiveCore().getLiveLogs(limit);
+
+        if (logs.isEmpty()) {
+            sender.sendMessage("§6[LiveRecorder] §7暂无直播日志");
+            return;
+        }
+
+        sender.sendMessage("§6§l========== 直播日志 (最近 " + logs.size() + " 条) ==========");
+
+        for (com.liverecorder.model.LiveLog log : logs) {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("HH:mm:ss");
+            String time = sdf.format(new java.util.Date(log.getTimestamp()));
+
+            sender.sendMessage(String.format(
+                    "§7[%s] §f%s",
+                    time, log.getDescription()
+            ));
+        }
+
+        sender.sendMessage("§6§l================================================");
     }
 }
