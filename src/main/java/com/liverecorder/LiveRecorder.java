@@ -119,14 +119,14 @@ public class LiveRecorder extends JavaPlugin {
         getLogger().info("");
         getLogger().info("============================================");
         getLogger().info("");
-        getLogger().info("    ███████╗ █████╗ ███████╗██╗   ██╗");
-        getLogger().info("    ██╔════╝██╔══██╗██╔════╝██║   ██║");
-        getLogger().info("    ███████╗███████║███████╗██║   ██║");
-        getLogger().info("    ╚════██║██╔══██║╚════██║██║   ██║");
-        getLogger().info("    ███████║██║  ██║███████║╚██████╔╝");
-        getLogger().info("    ╚══════╝╚═╝  ╚═╝╚══════╝ ╚═════╝");
+        getLogger().info("  ■         ■■■■");
+        getLogger().info("  ■         ■    ■");
+        getLogger().info("  ■         ■■■■");
+        getLogger().info("  ■         ■    ■");
+        getLogger().info("  ■■■■■     ■    ■");
         getLogger().info("");
-        getLogger().info("           无人机式自由录制者管理系统");
+        getLogger().info("      LiveRecorder");
+        getLogger().info("      无人机式自由录制者管理系统");
         getLogger().info("");
         getLogger().info("============================================");
     }
