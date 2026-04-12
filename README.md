@@ -18,7 +18,7 @@
 
 插件会将指定的录制者玩家自动绑定到目标玩家，实时生成第三人称镜头，并在授权有效的前提下，按照预设的节奏自动切换跟拍对象。
 
-[查看完整文档 →](./help/)
+[查看完整文档 →](https://lr.hosh.dev/)
 
 </div>
 
@@ -74,13 +74,13 @@ mvn clean package
 
 | 文档 | 说明 |
 |:-----|:-----|
-| [入门指南](./help/guide/getting-started.md) | 快速上手插件 |
-| [命令参考](./help/commands/index.md) | 所有命令说明 |
-| [配置详解](./help/config/index.md) | 配置文件说明 |
-| [使用场景](./help/scenarios/index.md) | 实际使用案例 |
-| [隐私保护](./help/privacy/index.md) | 隐私功能说明 |
-| [常见问题](./help/faq/index.md) | 问题解答 |
-| [API 参考](./help/api/index.md) | 开发者 API |
+| [入门指南](https://lr.hosh.dev/guide/getting-started) | 快速上手插件 |
+| [命令参考](https://lr.hosh.dev/commands/index) | 所有命令说明 |
+| [配置详解](https://lr.hosh.dev/config/index) | 配置文件说明 |
+| [使用场景](https://lr.hosh.dev/scenarios/index) | 实际使用案例 |
+| [隐私保护](https://lr.hosh.dev/privacy/index) | 隐私功能说明 |
+| [常见问题](https://lr.hosh.dev/faq/index) | 问题解答 |
+| [API 参考](https://lr.hosh.dev/api/index) | 开发者 API |
 | [更新日志](./CHANGELOG.md) | 版本更新记录 |
 
 ---

@@ -6,11 +6,11 @@
 
 首先，请查看我们的详细文档：
 
-- [快速开始](./help/guide/getting-started.md) - 快速上手指南
-- [安装部署](./help/guide/installation.md) - 详细的安装步骤
-- [常见问题](./help/faq/index.md) - 常见问题解答
-- [命令参考](./help/commands/index.md) - 所有命令说明
-- [配置详解](./help/config/index.md) - 配置文件说明
+- [快速开始](https://lr.hosh.dev/guide/getting-started) - 快速上手指南
+- [安装部署](https://lr.hosh.dev/guide/installation) - 详细的安装步骤
+- [常见问题](https://lr.hosh.dev/faq/index) - 常见问题解答
+- [命令参考](https://lr.hosh.dev/commands/index) - 所有命令说明
+- [配置详解](https://lr.hosh.dev/config/index) - 配置文件说明
 
 ## 💬 社区支持
 
@@ -133,7 +133,7 @@
 
 ### 官方资源
 
-- [文档网站](./help/) - 完整的在线文档
+- [文档网站](https://lr.hosh.dev/) - 完整的在线文档
 - [GitHub Wiki](https://github.com/httye/LiveRecorder/wiki) - 社区维基
 - [YouTube 教程](https://www.youtube.com/@LiveRecorder) - 视频教程
 
@@ -146,7 +146,7 @@
 
 ### 如何安装插件？
 
-查看 [安装部署](./help/guide/installation.md) 文档。
+查看 [安装部署](https://lr.hosh.dev/guide/installation) 文档。
 
 ### 插件不工作？
 
