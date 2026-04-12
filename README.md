@@ -12,7 +12,6 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/httye/LiveRecorder/build.yml?style=for-the-badge&logo=github)](https://github.com/httye/LiveRecorder/actions)
 [![Issues](https://img.shields.io/github/issues/httye/LiveRecorder?style=for-the-badge&logo=github)](https://github.com/httye/LiveRecorder/issues)
 [![PRs](https://img.shields.io/github/issues-pr/httye/LiveRecorder?style=for-the-badge&logo=github)](https://github.com/httye/LiveRecorder/pulls)
-[![Discord](https://img.shields.io/discord/000000000000000000?style=for-the-badge&logo=discord)](https://discord.gg/example)
 
 ---
 
@@ -374,8 +373,7 @@ auto-switch:
 ## 📢 联系我们
 
 - GitHub: [httye/LiveRecorder](https://github.com/httye/LiveRecorder)
-- Email: contact@example.com
-- Discord: [加入我们的 Discord](https://discord.gg/example)
+- Email: 1280773070@qq.com
 
 ---
 
