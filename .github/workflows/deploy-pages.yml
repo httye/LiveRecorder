@@ -50,6 +50,8 @@ jobs:
           path: help/.vitepress/dist
 
   deploy:
+    environment:
+      name: github-pages
     runs-on: ubuntu-latest
     needs: build
     steps:
