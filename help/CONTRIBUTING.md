@@ -324,7 +324,7 @@ git push origin main
 
 ## 📜 开源协议
 
-通过贡献代码，你同意你的贡献将根据 [MIT License](LICENSE) 进行授权。
+通过贡献代码，你同意你的贡献将根据 [MIT License](https://github.com/httye/LiveRecorder/blob/main/LICENSE) 进行授权。
 
 ## 🏆 贡献者
 

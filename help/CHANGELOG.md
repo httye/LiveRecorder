@@ -207,7 +207,7 @@
 
 ## 开源协议
 
-本项目基于 [MIT License](LICENSE) 开源。
+本项目基于 [MIT License](https://github.com/httye/LiveRecorder/blob/main/LICENSE) 开源。
 
 ---
 
