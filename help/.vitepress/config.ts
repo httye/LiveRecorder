@@ -4,8 +4,8 @@ export default defineConfig({
   title: 'LiveRecorder',
   description: '无人机式自由录制者管理系统',
   lang: 'zh-CN',
-  base: '/LiveRecorder/',
-  
+  base: '/',
+
   // 主题配置
   themeConfig: {
     // Logo
