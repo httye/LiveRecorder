@@ -15,6 +15,7 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.bukkit.util.Vector;
 
 /**
  * LiveRecorder 核心管理器
@@ -78,7 +79,8 @@ public class LiveCore {
      * 启动所有定时任务
      */
     public void startTasks() {
-        // 跟随任务 - 每 tick 执行，确保流畅跟随
+        // 跟随任务 - 每1 tick执行一次，实现真正的流式平滑移动
+        // 使用插值计算中间位置，而不是依赖Velocity
         followTask = new BukkitRunnable() {
             @Override
             public void run() {
@@ -205,8 +207,14 @@ public class LiveCore {
         Location cameraLoc = geometry.calculateCameraLocation(target);
         recorder.teleport(cameraLoc);
 
-        // 设置录制者隐身（如果配置启用）
-        if (plugin.getConfig().getBoolean("privacy.recorder-invisible.enabled", true)) {
+        // 如果是观察者模式，切换到旁观者模式并设置跟随目标
+        if (mode == RecorderBinding.Mode.SPECTATOR) {
+            recorder.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            recorder.setSpectatorTarget(target);
+        }
+
+        // 设置录制者隐身（如果配置启用，且不是观察者模式）
+        if (mode != RecorderBinding.Mode.SPECTATOR && plugin.getConfig().getBoolean("privacy.recorder-invisible.enabled", true)) {
             setRecorderInvisible(recorder, true);
         }
 
@@ -244,9 +252,12 @@ public class LiveCore {
             return false;
         }
 
-        // 取消录制者隐身
-        if (plugin.getConfig().getBoolean("privacy.recorder-invisible.enabled", true)) {
+        // 取消录制者隐身（如果不是观察者模式）
+        RecorderBinding.Mode mode = binding.getMode();
+        if (mode != RecorderBinding.Mode.SPECTATOR && plugin.getConfig().getBoolean("privacy.recorder-invisible.enabled", true)) {
             setRecorderInvisible(recorder, false);
+        } else if (mode == RecorderBinding.Mode.SPECTATOR) {
+            recorder.setSpectatorTarget(null);
         }
 
         // 记录日志
@@ -349,58 +360,135 @@ public class LiveCore {
 
     // ========== 跟随系统 ==========
 
-    /**
-     * 更新所有录制者的跟随位置
-     */
-    private void updateAllFollowers() {
-        CameraGeometry geometry = plugin.getCameraGeometry();
+private void updateAllFollowers() {
+    CameraGeometry geometry = plugin.getCameraGeometry();
 
-        for (RecorderBinding binding : bindings.values()) {
-            if (!binding.isActive()) continue;
+    for (RecorderBinding binding : bindings.values()) {
+        if (!binding.isActive()) continue;
 
-            Player recorder = binding.getRecorder();
-            Player target = binding.getTarget();
+        Player recorder = binding.getRecorder();
+        Player target = binding.getTarget();
 
-            // 检查玩家在线状态
-            if (!recorder.isOnline() || target == null || !target.isOnline()) {
-                continue;
-            }
-
-            // 计算镜头目标位置
-            Location cameraTarget = geometry.calculateCameraLocation(target);
-
-            // 检查是否需要传送（距离过远或不同世界）
-            if (geometry.needsTeleport(recorder, cameraTarget, 30.0)) {
-                recorder.teleport(cameraTarget);
-                if (plugin.getConfig().getBoolean("debug", false)) {
-                    plugin.getLogger().info(String.format(
-                            "[Debug] 录制者 %s 传送到目标 %s 镜头位置",
-                            recorder.getName(), target.getName()
-                    ));
-                }
-                continue;
-            }
-
-            // 使用 setVelocity 实现平滑跟随
-            Location followResult = geometry.calculateFollowVelocity(recorder, cameraTarget);
-            if (followResult != null) {
-                // 计算速度向量
-                double vx = followResult.getX() - recorder.getLocation().getX();
-                double vy = followResult.getY() - recorder.getLocation().getY();
-                double vz = followResult.getZ() - recorder.getLocation().getZ();
-
-                recorder.setVelocity(new org.bukkit.util.Vector(vx, vy, vz));
-
-                // 更新录制者朝向（看向目标）
-                Location lookDir = recorder.getLocation().clone();
-                lookDir.setDirection(followResult.getDirection());
-                recorder.teleport(lookDir);
-
-                binding.setFollowing(true);
-            } else {
-                binding.setFollowing(false);
-            }
+        if (!recorder.isOnline() || target == null || !target.isOnline()) {
+            continue;
         }
+
+        // 观察者模式使用原生 spectator 跟随
+        if (binding.getMode() == RecorderBinding.Mode.SPECTATOR) {
+            if (recorder.getGameMode() != org.bukkit.GameMode.SPECTATOR) {
+                recorder.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            }
+            recorder.setSpectatorTarget(target);
+            binding.setFollowing(true);
+            continue;
+        }
+
+        // 计算目标相机位置
+        Location cameraTarget = geometry.calculateCameraLocation(target);
+        Location currentLoc = recorder.getLocation();
+
+        // 当距离过大时直接传送，避免长时间延迟跟随
+        double distance = currentLoc.distance(cameraTarget);
+        if (distance > 30.0) {
+            recorder.teleport(cameraTarget);
+            binding.setFollowing(true);
+            continue;
+        }
+
+        // 使用平滑插值计算中间位置
+        Location smoothed = geometry.calculateSmoothedState(currentLoc, cameraTarget, target);
+        recorder.teleport(smoothed);
+        binding.setFollowing(true);
+    }
+}
+   
+    /**
+     * 计算平滑速度：使用 S 曲线实现更自然的速度过渡
+     * 近距离时速度很低，中等距离时速度适中，远距离时速度较高
+     */
+    private double calculateSmoothSpeed(double distance) {
+    	if (distance < 1.0) {
+    		// 极近距离：缓慢接近
+    		return distance * 2.0;
+    	} else if (distance < 3.0) {
+    		// 近距离：平滑加速
+    		double t = (distance - 1.0) / 2.0; // 归一化到 [0, 1]
+    		return 2.0 + 4.0 * easeInOutQuad(t);
+    	} else if (distance < 8.0) {
+    		// 中等距离：稳定速度
+    		double t = (distance - 3.0) / 5.0; // 归一化到 [0, 1]
+    		return 6.0 + 4.0 * easeInOutQuad(t);
+    	} else {
+    		// 远距离：最大速度
+    		double t = Math.min((distance - 8.0) / 12.0, 1.0); // 归一化到 [0, 1]
+    		return 10.0 + 2.0 * easeOutQuad(t);
+    	}
+    }
+   
+    /**
+     * 缓动函数：easeInOutQuad
+     * 实现平滑的加速和减速
+     */
+    private double easeInOutQuad(double t) {
+    	return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    }
+   
+    /**
+     * 缓动函数：easeOutQuad
+     * 实现平滑的减速
+     */
+    private double easeOutQuad(double t) {
+    	return t * (2 - t);
+    }
+   
+    /**
+     * 计算预测性偏移：根据目标的移动趋势调整方向
+     * 让镜头能够更好地预判目标的移动
+     */
+    private Vector calculatePredictionOffset(Player target, Vector currentDirection, double speed) {
+    	// 获取目标的当前速度向量
+    	Vector targetVelocity = target.getVelocity();
+    	
+    	// 如果目标移动速度很小，不进行预测
+    	if (targetVelocity.length() < 0.1) {
+    		return new Vector(0, 0, 0);
+    	}
+   
+    	// 计算目标移动方向与当前镜头方向的夹角
+    	Vector targetDirection = targetVelocity.clone().normalize();
+    	double dotProduct = currentDirection.dot(targetDirection);
+    	
+    	// 如果目标正在远离镜头，增加预测偏移
+    	if (dotProduct > 0.3) {
+    		// 预测偏移量基于目标速度和距离
+    		double predictionStrength = Math.min(targetVelocity.length() * 0.5, 0.3);
+    		return targetDirection.multiply(predictionStrength);
+    	}
+    	
+    	return new Vector(0, 0, 0);
+    }
+   
+    /**
+     * 平滑视角更新：使用插值实现更自然的视角旋转
+     */
+    private void updateSmoothRotation(Player recorder, Player target, CameraGeometry geometry) {
+    	Location currentLoc = recorder.getLocation();
+    	Location targetLoc = target.getLocation();
+    	
+    	// 计算看向目标的方向
+    	Vector toTarget = targetLoc.toVector().subtract(currentLoc.toVector());
+    	
+    	// 计算目标 yaw 和 pitch
+    	float targetYaw = (float) Math.toDegrees(Math.atan2(-toTarget.getX(), toTarget.getZ()));
+    	float targetPitch = (float) Math.toDegrees(Math.atan2(-toTarget.getY(),
+    		Math.sqrt(toTarget.getX() * toTarget.getX() + toTarget.getZ() * toTarget.getZ())));
+    	
+    	// 使用几何工具类中的角度插值方法
+    	float smoothYaw = geometry.interpolateAngle(currentLoc.getYaw(), targetYaw, (float) geometry.getRotationSmooth());
+    	float smoothPitch = geometry.interpolateAngle(currentLoc.getPitch(), targetPitch, (float) geometry.getRotationSmooth());
+    	
+    	// 应用平滑后的视角
+    	recorder.setRotation(smoothYaw, smoothPitch);
     }
 
     // ========== 自动切换 ==========

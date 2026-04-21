@@ -51,16 +51,25 @@
 
 ## 📧 联系我们
 
+### GitHub Issues & Discussions（推荐）
+
+我们优先通过 GitHub 提供支持：
+
+- **问题报告**: [GitHub Issues](https://github.com/httye/LiveRecorder/issues) - 报告 Bug 或功能建议
+- **社区讨论**: [GitHub Discussions](https://github.com/httye/LiveRecorder/discussions) - 提问、分享经验、寻求帮助
+- **文档改进**: [Pull Requests](https://github.com/httye/LiveRecorder/pulls) - 帮助改进文档
+
 ### 邮件支持
 
-- **一般问题**: support@example.com
-- **安全问题**: security@example.com
-- **行为问题**: conduct@example.com
+如果无法通过 GitHub 联系，可以发送邮件至：
+
+- **一般问题**: 1280773070@qq.com
+- **安全问题**: 请在 GitHub Issues 中报告（标记为安全相关）
 
 ### 社交媒体
 
 - GitHub: [httye/LiveRecorder](https://github.com/httye/LiveRecorder)
-- Twitter: [@LiveRecorder](https://twitter.com/LiveRecorder)
+- QQ: 1280773070
 
 ## 📋 提问指南
 

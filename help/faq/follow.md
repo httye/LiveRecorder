@@ -16,9 +16,9 @@
    - 目标使用末地传送门等
 
 2. **镜头配置不当**
-   - `follow-speed` 设置过高
+   - `position-smooth` 设置过高
    - `distance` 设置过小
-   - 跟随速度与移动速度不匹配
+   - 平滑系数与移动速度不匹配
 
 3. **网络延迟**
    - 服务器延迟过高
@@ -31,9 +31,9 @@
 
 ```yaml
 camera:
-  follow-speed: 0.20    # 减小跟随速度
-  distance: 8.0        # 增大镜头距离
-  arrival-threshold: 0.5  # 增大到达阈值
+  position-smooth: 0.08    # 减小位置平滑系数，让移动更平滑
+  rotation-smooth: 0.06    # 减小视角平滑系数，让旋转更柔和
+  distance: 8.0            # 增大镜头距离
 ```
 
 #### 检查网络延迟
@@ -68,9 +68,9 @@ debug: true
    - 目标使用了骑乘工具
 
 2. **镜头配置不当**
-   - `follow-speed` 设置过低
+   - `position-smooth` 设置过低
    - `distance` 设置过大
-   - 跟随速度不足
+   - 平滑系数不足
 
 ### 解决方案
 
@@ -78,8 +78,9 @@ debug: true
 
 ```yaml
 camera:
-  follow-speed: 0.50    # 增大跟随速度
-  distance: 4.0        # 减小镜头距离
+  position-smooth: 0.30    # 增大位置平滑系数
+  rotation-smooth: 0.20    # 增大视角平滑系数
+  distance: 4.0            # 减小镜头距离
 ```
 
 #### 使用更快的配置
@@ -89,7 +90,8 @@ camera:
 camera:
   pitch: 25.0
   distance: 4.0
-  follow-speed: 0.50
+  position-smooth: 0.30
+  rotation-smooth: 0.20
 ```
 
 ## 录制者位置不准确
@@ -127,7 +129,8 @@ camera:
 camera:
   pitch: 30.0
   distance: 5.0
-  follow-speed: 0.35
+  position-smooth: 0.12
+  rotation-smooth: 0.1
 ```
 
 ## 录制者抖动
@@ -138,13 +141,13 @@ camera:
 
 ### 可能原因
 
-1. **到达阈值过小**
-   - `arrival-threshold` 设置过小
-   - 录制者频繁调整位置
+1. **平滑系数过高**
+   - `position-smooth` 设置过高
+   - 录制者过度反应位置变化
 
-2. **跟随速度过高**
-   - `follow-speed` 设置过高
-   - 录制者过度反应
+2. **视角平滑系数过高**
+   - `rotation-smooth` 设置过高
+   - 录制者过度反应视角变化
 
 ### 解决方案
 
@@ -152,8 +155,8 @@ camera:
 
 ```yaml
 camera:
-  arrival-threshold: 0.5   # 增大到达阈值
-  follow-speed: 0.30      # 减小跟随速度
+  position-smooth: 0.08    # 减小位置平滑系数
+  rotation-smooth: 0.06    # 减小视角平滑系数
 ```
 
 #### 使用平滑配置
@@ -163,7 +166,8 @@ camera:
 camera:
   pitch: 35.0
   distance: 6.0
-  follow-speed: 0.20
+  position-smooth: 0.06
+  rotation-smooth: 0.05
 ```
 
 ## 录制者卡住
@@ -249,18 +253,18 @@ permissions:
 
 根据游戏类型选择合适的镜头配置：
 
-| 游戏类型 | pitch | distance | follow-speed |
-|:--------:|:-----:|:--------:|:------------:|
-| PVP 游戏 | 25° | 4.0 | 0.50 |
-| 建筑游戏 | 45° | 8.0 | 0.35 |
-| 冒险游戏 | 30° | 5.0 | 0.35 |
-| 休闲游戏 | 35° | 6.0 | 0.20 |
+| 游戏类型 | pitch | distance | position-smooth | rotation-smooth |
+|:--------:|:-----:|:--------:|:---------------:|:---------------:|
+| PVP 游戏 | 25° | 4.0 | 0.30 | 0.20 |
+| 建筑游戏 | 45° | 8.0 | 0.08 | 0.06 |
+| 冒险游戏 | 30° | 5.0 | 0.12 | 0.10 |
+| 休闲游戏 | 35° | 6.0 | 0.06 | 0.05 |
 
 ### 性能优化
 
 1. **减少录制者数量** - 最多 5 个录制者
 2. **关闭不必要的视觉效果** - 禁用粒子效果
-3. **使用合适的配置** - 避免过高的跟随速度
+3. **使用合适的配置** - 避免过高的平滑系数
 
 ### 监控和调试
 

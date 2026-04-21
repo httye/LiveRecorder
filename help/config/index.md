@@ -41,8 +41,8 @@ camera:
   pitch: 30.0
   distance: 5.0
   height-offset: 0.0
-  follow-speed: 0.35
-  arrival-threshold: 0.3
+  position-smooth: 0.12
+  rotation-smooth: 0.1
 
 # 自动切换设置
 auto-switch:
@@ -107,11 +107,12 @@ camera:
   distance: 5.0  # 距离越远，镜头越远
 ```
 
-### 调整跟随速度
+### 调整平滑系数
 
 ```yaml
 camera:
-  follow-speed: 0.35  # 值越大，跟随越快
+  position-smooth: 0.12  # 位置平滑，值越大跟随越紧密
+  rotation-smooth: 0.1   # 视角平滑，值越大旋转越灵敏
 ```
 
 ### 关闭录制者隐身
@@ -136,6 +137,7 @@ visual:
 - [视觉反馈](./visual) - 视觉效果
 - [录制者限制](./restrictions) - 录制者操作限制
 - [隐私设置](./privacy) - 隐私相关功能
+- [场景推荐配置](./recommended) - 不同场景的配置方案
 
 ## 配置验证
 

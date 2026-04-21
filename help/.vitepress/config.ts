@@ -94,6 +94,7 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: '配置概览', link: '/config/index' },
+            { text: '📋 场景推荐配置', link: '/config/recommended' },
             {
               text: '镜头设置',
               collapsible: true,
@@ -209,6 +210,7 @@ export default defineConfig({
             { text: 'LiveCore 类', link: '/api/livecore' },
             { text: 'DatabaseManager 类', link: '/api/databasemanager' },
             { text: 'CameraGeometry 类', link: '/api/camerageometry' },
+            { text: 'RecorderBinding 类', link: '/api/recorderbinding' },
           ]
         }
       ],

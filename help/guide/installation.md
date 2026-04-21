@@ -99,7 +99,8 @@ plugins/
 camera:
   pitch: 30.0              # 俯角（度）
   distance: 5.0            # 水平距离（格）
-  follow-speed: 0.35       # 跟随速度
+  position-smooth: 0.12    # 位置平滑系数
+  rotation-smooth: 0.1     # 视角平滑系数
 
 # 自动切换
 auto-switch:

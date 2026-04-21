@@ -233,7 +233,8 @@ https://github.com/httye/LiveRecorder/blob/main/src/main/resources/config.yml
 camera:
   pitch: 30.0
   distance: 5.0
-  follow-speed: 0.35
+  position-smooth: 0.12
+  rotation-smooth: 0.1
 
 auto-switch:
   enabled: true

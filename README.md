@@ -262,7 +262,7 @@ auto-switch:
 - 📜 [开源协议](./LICENSE) - MIT License
 - 💬 [GitHub Discussions](https://github.com/httye/LiveRecorder/discussions) - 参与讨论
 - 🐛 [GitHub Issues](https://github.com/httye/LiveRecorder/issues) - 报告问题
-- 📧 [联系我们](mailto:contact@example.com) - 联系作者
+- 📧 [联系我们](mailto:1280773070@qq.com) - 联系作者
 
 ---
 

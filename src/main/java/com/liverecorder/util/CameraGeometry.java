@@ -3,6 +3,7 @@ package com.liverecorder.util;
 import com.liverecorder.LiveRecorder;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.util.Vector;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -22,8 +23,8 @@ public class CameraGeometry {
     private BigDecimal cameraPitch;      // 俯角（度数）
     private BigDecimal cameraDistance;    // 水平距离（格）
     private BigDecimal heightOffset;      // 额外高度偏移
-    private BigDecimal followSpeed;       // 跟随速度系数
-    private BigDecimal arrivalThreshold;  // 到达阈值
+    private double positionSmooth;        // 位置平滑系数（0.0~1.0），值越小越平滑
+    private double rotationSmooth;        // 视角平滑系数（0.0~1.0），值越小越平滑
 
     private final LiveRecorder plugin;
 
@@ -39,8 +40,8 @@ public class CameraGeometry {
         cameraPitch = new BigDecimal(String.valueOf(plugin.getConfig().getDouble("camera.pitch", 30.0)));
         cameraDistance = new BigDecimal(String.valueOf(plugin.getConfig().getDouble("camera.distance", 5.0)));
         heightOffset = new BigDecimal(String.valueOf(plugin.getConfig().getDouble("camera.height-offset", 0.0)));
-        followSpeed = new BigDecimal(String.valueOf(plugin.getConfig().getDouble("camera.follow-speed", 0.35)));
-        arrivalThreshold = new BigDecimal(String.valueOf(plugin.getConfig().getDouble("camera.arrival-threshold", 0.3)));
+        positionSmooth = plugin.getConfig().getDouble("camera.position-smooth", 0.12);
+        rotationSmooth = plugin.getConfig().getDouble("camera.rotation-smooth", 0.1);
     }
 
     /**
@@ -83,68 +84,68 @@ public class CameraGeometry {
     }
 
     /**
-     * 计算跟随速度向量
-     * 使用 setVelocity 方式实时跟随
+     * 计算平滑后的镜头状态（位置 + 视角）
+     * 使用指数衰减平滑（Exponential Smoothing），让镜头移动更流畅自然
      *
-     * @param recorder 录制者
-     * @param cameraTarget 镜头目标位置
-     * @return 速度向量（作为 Location 的方向向量表示）
+     * 位置平滑：newPos = currentPos + (targetPos - currentPos) * positionSmooth
+     * 视角平滑：从当前平滑位置计算看向目标的方向，再对 yaw/pitch 做角度插值
+     *
+     * @param current      录制者当前位置
+     * @param cameraTarget 镜头目标位置（包含目标朝向）
+     * @param target       目标玩家（用于计算精确的视角方向）
+     * @return 平滑后的镜头位置（包含平滑后的朝向）
      */
-    public Location calculateFollowVelocity(Player recorder, Location cameraTarget) {
-        Location recorderLoc = recorder.getLocation();
+    public Location calculateSmoothedState(Location current, Location cameraTarget, Player target) {
+        // ===== 1. 位置平滑插值 =====
+        double curX = current.getX();
+        double curY = current.getY();
+        double curZ = current.getZ();
 
-        // 计算当前位置与目标位置的差值
-        BigDecimal rx = new BigDecimal(String.valueOf(recorderLoc.getX()));
-        BigDecimal ry = new BigDecimal(String.valueOf(recorderLoc.getY()));
-        BigDecimal rz = new BigDecimal(String.valueOf(recorderLoc.getZ()));
+        double tgtX = cameraTarget.getX();
+        double tgtY = cameraTarget.getY();
+        double tgtZ = cameraTarget.getZ();
 
-        BigDecimal tx = new BigDecimal(String.valueOf(cameraTarget.getX()));
-        BigDecimal ty = new BigDecimal(String.valueOf(cameraTarget.getY()));
-        BigDecimal tz = new BigDecimal(String.valueOf(cameraTarget.getZ()));
+        double smoothX = curX + (tgtX - curX) * positionSmooth;
+        double smoothY = curY + (tgtY - curY) * positionSmooth;
+        double smoothZ = curZ + (tgtZ - curZ) * positionSmooth;
 
-        BigDecimal diffX = tx.subtract(rx, MC);
-        BigDecimal diffY = ty.subtract(ry, MC);
-        BigDecimal diffZ = tz.subtract(rz, MC);
+        // ===== 2. 计算从平滑位置看向目标的方向 =====
+        Location targetLoc = target.getLocation();
+        Vector toTarget = targetLoc.toVector().subtract(new Vector(smoothX, smoothY, smoothZ));
 
-        // 计算距离
-        BigDecimal distSq = diffX.multiply(diffX, MC)
-                .add(diffY.multiply(diffY, MC), MC)
-                .add(diffZ.multiply(diffZ, MC), MC);
-        double distance = sqrt(distSq).doubleValue();
+        double horizontalDist = Math.sqrt(toTarget.getX() * toTarget.getX() + toTarget.getZ() * toTarget.getZ());
 
-        // 如果距离小于到达阈值，不需要移动
-        if (distance < arrivalThreshold.doubleValue()) {
-            return null;
-        }
+        // 计算目标 yaw 和 pitch
+        float targetYaw = (float) Math.toDegrees(Math.atan2(-toTarget.getX(), toTarget.getZ()));
+        float targetPitch = (float) Math.toDegrees(Math.atan2(-toTarget.getY(), horizontalDist));
 
-        // 应用跟随速度系数
-        // 速度 = 差值 * 跟随速度系数
-        // 但要限制最大速度，避免瞬移感
-        double speed = followSpeed.doubleValue();
+        // ===== 3. 视角平滑插值（处理 360° 环绕） =====
+        float smoothYaw = interpolateAngle(current.getYaw(), targetYaw, (float) rotationSmooth);
+        float smoothPitch = interpolateAngle(current.getPitch(), targetPitch, (float) rotationSmooth);
 
-        // 距离越大，速度越快（弹性跟随）
-        double velocityX = diffX.doubleValue() * speed;
-        double velocityY = diffY.doubleValue() * speed;
-        double velocityZ = diffZ.doubleValue() * speed;
+        // ===== 4. 构建结果 =====
+        return new Location(
+                cameraTarget.getWorld(),
+                smoothX, smoothY, smoothZ,
+                smoothYaw, smoothPitch
+        );
+    }
 
-        // 限制最大速度
-        double maxSpeed = 2.0;
-        double magnitude = Math.sqrt(velocityX * velocityX + velocityY * velocityY + velocityZ * velocityZ);
-        if (magnitude > maxSpeed) {
-            double scale = maxSpeed / magnitude;
-            velocityX *= scale;
-            velocityY *= scale;
-            velocityZ *= scale;
-        }
-
-        // 构建结果位置（使用 Location 存储速度向量信息）
-        Location result = recorderLoc.clone();
-        result.setDirection(cameraTarget.getDirection());
-        result.setX(recorderLoc.getX() + velocityX);
-        result.setY(recorderLoc.getY() + velocityY);
-        result.setZ(recorderLoc.getZ() + velocityZ);
-
-        return result;
+    /**
+     * 角度平滑插值（处理 360° 环绕）
+     * 始终选择最短旋转路径，避免视角突然翻转
+     *
+     * @param current  当前角度
+     * @param target   目标角度
+     * @param smooth   平滑系数 (0.0~1.0)
+     * @return 插值后的角度
+     */
+    public float interpolateAngle(float current, float target, float smooth) {
+        float diff = target - current;
+        // 归一化到 [-180, 180]，选择最短旋转路径
+        while (diff > 180f) diff -= 360f;
+        while (diff < -180f) diff += 360f;
+        return current + diff * smooth;
     }
 
     /**
@@ -265,11 +266,11 @@ public class CameraGeometry {
         return cameraDistance.doubleValue();
     }
 
-    public double getFollowSpeed() {
-        return followSpeed.doubleValue();
+    public double getPositionSmooth() {
+        return positionSmooth;
     }
 
-    public double getArrivalThreshold() {
-        return arrivalThreshold.doubleValue();
+    public double getRotationSmooth() {
+        return rotationSmooth;
     }
 }

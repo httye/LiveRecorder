@@ -15,7 +15,9 @@ public class RecorderBinding {
         /** 自动模式：按照预设节奏自动切换跟拍对象 */
         AUTO,
         /** 手动模式：只能通过命令手动切换跟拍对象 */
-        MANUAL
+        MANUAL,
+        /** 观察者模式：使用旁观者模式自动跟随目标 */
+        SPECTATOR
     }
 
     /** 录制者玩家 */

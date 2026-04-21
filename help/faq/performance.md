@@ -123,11 +123,12 @@ visual:
   camera-particle: false
 ```
 
-#### 调整跟随速度
+#### 调整平滑系数
 
 ```yaml
 camera:
-  follow-speed: 0.20      # 降低跟随速度，减少计算频率
+  position-smooth: 0.08    # 降低位置平滑系数，减少计算频率
+  rotation-smooth: 0.06    # 降低视角平滑系数
 ```
 
 ## 网络延迟
@@ -164,12 +165,12 @@ camera:
 /ping CameraMan
 ```
 
-#### 调整跟随配置
+#### 调整平滑配置
 
 ```yaml
 camera:
-  follow-speed: 0.20      # 降低跟随速度，容忍延迟
-  arrival-threshold: 0.5  # 增大到达阈值
+  position-smooth: 0.08    # 降低位置平滑系数，容忍延迟
+  rotation-smooth: 0.06    # 降低视角平滑系数
 ```
 
 ## 最佳实践

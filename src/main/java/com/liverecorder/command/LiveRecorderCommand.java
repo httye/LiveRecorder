@@ -113,7 +113,7 @@ public class LiveRecorderCommand implements CommandExecutor {
             try {
                 mode = RecorderBinding.Mode.valueOf(args[3].toUpperCase());
             } catch (IllegalArgumentException e) {
-                sender.sendMessage("§6[LiveRecorder] §c无效的模式: " + args[3] + "，可选: auto, manual");
+                sender.sendMessage("§6[LiveRecorder] §c无效的模式: " + args[3] + "，可选: auto, manual, spectator");
                 return;
             }
         }
@@ -316,7 +316,7 @@ public class LiveRecorderCommand implements CommandExecutor {
      */
     private void sendHelp(CommandSender sender) {
         sender.sendMessage("§6§l========== LiveRecorder 帮助 ==========");
-        sender.sendMessage("§e/lr bind <录制者> <目标> [auto|manual] §7- 绑定录制者");
+        sender.sendMessage("§e/lr bind <录制者> <目标> [auto|manual|spectator] §7- 绑定录制者");
         sender.sendMessage("§e/lr unbind <录制者> §7- 解除录制者绑定");
         sender.sendMessage("§e/lr list §7- 列出所有绑定");
         sender.sendMessage("§e/lr mode <录制者> <auto|manual> §7- 切换绑定模式");

@@ -1,6 +1,6 @@
 # CameraGeometry 类
 
-镜头几何计算器，使用高精度数学计算镜头位置。
+镜头几何计算器，使用高精度数学计算镜头位置，并提供平滑插值功能。
 
 ## 类概述
 
@@ -12,8 +12,8 @@ public class CameraGeometry {
     private BigDecimal cameraPitch;
     private BigDecimal cameraDistance;
     private BigDecimal heightOffset;
-    private BigDecimal followSpeed;
-    private BigDecimal arrivalThreshold;
+    private double positionSmooth;
+    private double rotationSmooth;
 }
 ```
 
@@ -30,7 +30,7 @@ CameraGeometry geometry = lr.getCameraGeometry();
 
 ### calculateCameraLocation()
 
-计算镜头位置。
+计算镜头目标位置。
 
 ```java
 public Location calculateCameraLocation(Player target)
@@ -41,7 +41,7 @@ public Location calculateCameraLocation(Player target)
 Player target = Bukkit.getPlayer("Steve");
 Location cameraLoc = geometry.calculateCameraLocation(target);
 
-// cameraLoc 是录制者应该到达的位置
+// cameraLoc 是录制者应该到达的目标位置
 recorder.teleport(cameraLoc);
 ```
 
@@ -52,6 +52,39 @@ recorder.teleport(cameraLoc);
 dx = -distance × sin(yaw)                    ← 水平X偏移（身后）
 dz =  distance × cos(yaw)                    ← 水平Z偏移
 dy =  distance × tan(pitch) + heightOffset   ← 垂直偏移
+```
+
+### calculateSmoothedState()
+
+计算平滑后的镜头状态（位置 + 视角），使用指数衰减平滑算法实现流畅的镜头移动和视角旋转。
+
+```java
+public Location calculateSmoothedState(Location current, Location cameraTarget, Player target)
+```
+
+**参数：**
+- `current` - 录制者当前位置
+- `cameraTarget` - 镜头目标位置（由 `calculateCameraLocation` 计算）
+- `target` - 目标玩家（用于计算精确的视角方向）
+
+**示例：**
+```java
+Player recorder = Bukkit.getPlayer("CameraMan");
+Player target = Bukkit.getPlayer("Steve");
+Location cameraTarget = geometry.calculateCameraLocation(target);
+
+// 计算平滑后的位置和视角
+Location smoothed = geometry.calculateSmoothedState(
+        recorder.getLocation(), cameraTarget, target);
+
+// 传送到平滑后的位置
+recorder.teleport(smoothed);
+```
+
+**平滑算法：**
+```
+位置平滑：newPos = currentPos + (targetPos - currentPos) × positionSmooth
+视角平滑：newAngle = currentAngle + shortestPathDiff × rotationSmooth
 ```
 
 ### needsTeleport()
@@ -72,30 +105,6 @@ if (geometry.needsTeleport(recorder, cameraTarget, 30.0)) {
 }
 ```
 
-### calculateFollowVelocity()
-
-计算跟随速度。
-
-```java
-public Location calculateFollowVelocity(Player recorder, Location cameraTarget)
-```
-
-**示例：**
-```java
-Player recorder = Bukkit.getPlayer("CameraMan");
-Location cameraTarget = geometry.calculateCameraLocation(target);
-Location followResult = geometry.calculateFollowVelocity(recorder, cameraTarget);
-
-if (followResult != null) {
-    // 计算速度向量
-    double vx = followResult.getX() - recorder.getLocation().getX();
-    double vy = followResult.getY() - recorder.getLocation().getY();
-    double vz = followResult.getZ() - recorder.getLocation().getZ();
-    
-    recorder.setVelocity(new Vector(vx, vy, vz));
-}
-```
-
 ## 配置方法
 
 ### reload()
@@ -111,7 +120,49 @@ public void reload()
 geometry.reload();
 ```
 
+## Getter 方法
+
+### getCameraPitch()
+
+获取俯角（度数）。
+
+```java
+public double getCameraPitch()
+```
+
+### getCameraDistance()
+
+获取镜头距离（格）。
+
+```java
+public double getCameraDistance()
+```
+
+### getPositionSmooth()
+
+获取位置平滑系数。
+
+```java
+public double getPositionSmooth()
+```
+
+### getRotationSmooth()
+
+获取视角平滑系数。
+
+```java
+public double getRotationSmooth()
+```
+
 ## 内部方法
+
+### interpolateAngle()
+
+角度平滑插值，处理 360° 环绕，始终选择最短旋转路径。
+
+```java
+private float interpolateAngle(float current, float target, float smooth)
+```
 
 ### toRadians()
 
@@ -155,6 +206,30 @@ private BigDecimal sqrt(BigDecimal x)
 
 ## 使用示例
 
+### 完整的平滑跟随流程
+
+```java
+public void updateFollower(Player recorder, Player target) {
+    CameraGeometry geometry = plugin.getCameraGeometry();
+    
+    // 1. 计算镜头目标位置
+    Location cameraTarget = geometry.calculateCameraLocation(target);
+    
+    // 2. 检查是否需要传送（距离过远）
+    if (geometry.needsTeleport(recorder, cameraTarget, 30.0)) {
+        recorder.teleport(cameraTarget);
+        return;
+    }
+    
+    // 3. 计算平滑后的位置和视角
+    Location smoothed = geometry.calculateSmoothedState(
+            recorder.getLocation(), cameraTarget, target);
+    
+    // 4. 传送到平滑后的位置
+    recorder.teleport(smoothed);
+}
+```
+
 ### 自定义镜头位置
 
 ```java
@@ -180,29 +255,6 @@ public Location customCameraLocation(Player target, double pitch, double distanc
 }
 ```
 
-### 检查跟随状态
-
-```java
-public void checkFollowStatus(Player recorder, Player target) {
-    Location cameraTarget = geometry.calculateCameraLocation(target);
-    double distance = recorder.getLocation().distance(cameraTarget);
-    
-    if (distance > 30.0) {
-        // 距离过远，需要传送
-        recorder.teleport(cameraTarget);
-    } else if (distance > 5.0) {
-        // 距离较远，使用速度跟随
-        Location followResult = geometry.calculateFollowVelocity(recorder, cameraTarget);
-        if (followResult != null) {
-            double vx = followResult.getX() - recorder.getLocation().getX();
-            double vy = followResult.getY() - recorder.getLocation().getY();
-            double vz = followResult.getZ() - recorder.getLocation().getZ();
-            recorder.setVelocity(new Vector(vx, vy, vz));
-        }
-    }
-}
-```
-
 ### 计算镜头角度
 
 ```java
@@ -225,6 +277,12 @@ CameraGeometry 使用 BigDecimal 进行高精度计算，确保镜头位置准�
 
 内部使用 MathContext(12, RoundingMode.HALF_UP) 确保精度。
 
+### 平滑系数调优
+
+- `position-smooth` 控制位置移动的平滑度，值越小越平滑（推荐 0.06-0.35）
+- `rotation-smooth` 控制视角旋转的平滑度，值越小越平滑（推荐 0.04-0.25）
+- 两个系数独立控制，可以根据场景分别调优
+
 ### 性能考虑
 
 镜头计算相对复杂，避免在循环中频繁调用。缓存结果以提高性能。
@@ -234,6 +292,30 @@ CameraGeometry 使用 BigDecimal 进行高精度计算，确保镜头位置准�
 CameraGeometry 的方法是线程安全的，可以在任何线程中调用。
 
 ## 数学原理
+
+### 指数衰减平滑
+
+位置和视角使用指数衰减平滑（Exponential Smoothing）：
+
+```
+smoothedValue = currentValue + (targetValue - currentValue) × smoothFactor
+```
+
+- smoothFactor 越小，平滑效果越强，响应越慢
+- smoothFactor 越大，平滑效果越弱，响应越快
+- 当 smoothFactor = 1.0 时，无平滑效果，直接跳到目标值
+
+### 角度插值
+
+视角旋转使用最短路径角度插值，自动处理 360°/0° 边界：
+
+```
+diff = targetAngle - currentAngle
+// 归一化到 [-180, 180]
+while (diff > 180) diff -= 360
+while (diff < -180) diff += 360
+result = currentAngle + diff × smoothFactor
+```
 
 ### 泰勒级数展开
 
@@ -259,4 +341,3 @@ xₙ₊₁ = (xₙ + a/xₙ) / 2
 ```
 x' = x × cos(θ) - y × sin(θ)
 y' = x × sin(θ) + y × cos(θ)
-```

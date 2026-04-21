@@ -12,6 +12,9 @@ LiveRecorder 提供了丰富的 API 供开发者使用。
 | LiveCore | 核心管理器 | `com.liverecorder.manager.LiveCore` |
 | DatabaseManager | 数据库管理器 | `com.liverecorder.database.DatabaseManager` |
 | CameraGeometry | 镜头几何计算 | `com.liverecorder.util.CameraGeometry` |
+| RecorderBinding | 录制者绑定模型 | `com.liverecorder.model.RecorderBinding` |
+| PrivacySetting | 隐私设置模型 | `com.liverecorder.model.PrivacySetting` |
+| LiveLog | 直播日志模型 | `com.liverecorder.model.LiveLog` |
 
 ## 获取插件实例
 
