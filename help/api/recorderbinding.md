@@ -638,8 +638,8 @@ public void cleanupBinding(RecorderBinding binding) {
 ## 相关类
 
 - [LiveCore](./livecore) - 核心管理器，管理所有绑定
-- [PrivacySetting](./privacysetting) - 隐私设置模型
-- [LiveLog](./livelog) - 直播日志模型
+- [PrivacySetting](../privacy/overview) - 隐私设置模型
+- [LiveLog](../privacy/logs) - 直播日志模型
 - [CameraGeometry](./camerageometry) - 镜头几何计算
 
 ## 常见问题
