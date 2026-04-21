@@ -14,14 +14,18 @@ jobs:
   # ============================================
   build:
     runs-on: ubuntu-latest
+    name: Build (Java ${{ matrix.java-version }})
 
     strategy:
       matrix:
         java-version: [ 8, 11, 17 ]
+      fail-fast: false
 
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for changelog generation
 
       - name: ☕ Setup JDK ${{ matrix.java-version }}
         uses: actions/setup-java@v4
@@ -31,15 +35,27 @@ jobs:
           cache: maven
 
       - name: 🔨 Build with Maven
-        run: mvn clean package -B -V
+        run: mvn clean package -B -V -DskipTests
 
       - name: 📦 Upload build artifact
         if: matrix.java-version == 17
         uses: actions/upload-artifact@v4
         with:
-          name: LiveRecorder-build
+          name: LiveRecorder-${{ github.run_number }}
           path: target/LiveRecorder-*.jar
-          retention-days: 7
+          retention-days: 30
+
+      - name: 📊 Build summary
+        if: matrix.java-version == 17
+        run: |
+          echo "## 🔨 Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Java Version**: ${{ matrix.java-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Number**: ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Generated Artifacts:" >> $GITHUB_STEP_SUMMARY
+          ls -lh target/*.jar | awk '{print "- "$NF" ("$5")"}' >> $GITHUB_STEP_SUMMARY
 
   # ============================================
   # 发布任务 - 仅在推送 tag 时触发
@@ -48,13 +64,17 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    name: Create Release
 
     permissions:
       contents: write
+      packages: write
 
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: ☕ Setup JDK 17
         uses: actions/setup-java@v4
@@ -64,7 +84,7 @@ jobs:
           cache: maven
 
       - name: 🔨 Build with Maven
-        run: mvn clean package -B -V
+        run: mvn clean package -B -V -DskipTests
 
       - name: 📋 Extract version from tag
         id: version
@@ -72,24 +92,49 @@ jobs:
           TAG=${GITHUB_REF#refs/tags/}
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "major=$(echo ${TAG#v} | cut -d. -f1)" >> $GITHUB_OUTPUT
+          echo "minor=$(echo ${TAG#v} | cut -d. -f2)" >> $GITHUB_OUTPUT
+          echo "patch=$(echo ${TAG#v} | cut -d. -f3)" >> $GITHUB_OUTPUT
 
       - name: 📝 Generate changelog
         id: changelog
         run: |
           # 获取上一个 tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          
+
           if [ -z "$PREV_TAG" ]; then
             # 没有上一个 tag，获取所有提交
             COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+            CHANGELOG_TITLE="🎉 Initial Release"
           else
             # 获取两个 tag 之间的提交
             COMMITS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+
+            # 分类提交类型
+            FEATURES=$(git log ${PREV_TAG}..HEAD --grep="^feat" --pretty=format:"- %s (%h)" --no-merges || true)
+            FIXES=$(git log ${PREV_TAG}..HEAD --grep="^fix" --pretty=format:"- %s (%h)" --no-merges || true)
+            DOCS=$(git log ${PREV_TAG}..HEAD --grep="^docs" --pretty=format:"- %s (%h)" --no-merges || true)
+            REFACTOR=$(git log ${PREV_TAG}..HEAD --grep="^refactor" --pretty=format:"- %s (%h)" --no-merges || true)
+            CHORE=$(git log ${PREV_TAG}..HEAD --grep="^chore" --pretty=format:"- %s (%h)" --no-merges || true)
+
+            CHANGELOG_TITLE="📦 What's Changed"
           fi
-          
-          # 写入文件（多行内容）
-          echo "commits<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMITS" >> $GITHUB_OUTPUT
+
+          # 生成更新日志
+          cat > changelog.md << EOF
+          ## $CHANGELOG_TITLE
+
+          ### All Changes
+          $COMMITS
+
+          ---
+
+          **Full Changelog**: [\`${PREV_TAG:-initial}...${{ steps.version.outputs.tag }}\`](https://github.com/${{ github.repository }}/compare/${PREV_TAG:-initial}...${{ steps.version.outputs.tag }})
+          EOF
+
+          # 输出到 GitHub Actions
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          cat changelog.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: 🎉 Create GitHub Release
@@ -99,23 +144,37 @@ jobs:
           name: "LiveRecorder ${{ steps.version.outputs.tag }}"
           body: |
             ## 🎥 LiveRecorder ${{ steps.version.outputs.tag }}
-            
-            ### 📦 下载安装
-            1. 下载下方 `LiveRecorder-*.jar` 文件
-            2. 放入服务器 `plugins/` 目录
-            3. 重启服务器
-            
-            ### 📋 更新日志
-            ${{ steps.changelog.outputs.commits }}
-            
-            ### ⚙️ 兼容性
-            - 服务端：Spigot / Paper 1.16+
-            - Java：8+
-            
+
+            ### 📦 Installation
+            1. Download `LiveRecorder-${{ steps.version.outputs.version }}.jar` below
+            2. Place it in your server's `plugins/` directory
+            3. Restart your server
+
+            ### 📋 ${{ steps.changelog.outputs.changelog }}
+
+            ### ⚙️ Compatibility
+            - **Server**: Spigot / Paper 1.16+
+            - **Java**: 8+
+            - **Maven**: 3.6+
+
+            ### 📚 Documentation
+            - [Online Docs](https://lr.hosh.dev)
+            - [README](https://github.com/${{ github.repository }}#readme)
+            - [Changelog](https://github.com/${{ github.repository }}/blob/main/help/CHANGELOG.md)
+
             ---
-            **完整文档**: [README](https://github.com/httye/LiveRecorder#readme)
+            Made with ❤️ by 七月个人制作组
           files: target/LiveRecorder-*.jar
           draft: false
           prerelease: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ✅ Release summary
+        run: |
+          echo "## 🎉 Release Created Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release URL**: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Published at**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY

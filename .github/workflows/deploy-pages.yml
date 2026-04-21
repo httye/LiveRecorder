@@ -16,32 +16,55 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
           cache-dependency-path: help/package-lock.json
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: |
           cd help
           npm ci
 
-      - name: Build VitePress
+      - name: 🔨 Build VitePress
         run: |
           cd help
           npm run docs:build
 
-      - name: Deploy to gh-pages branch
+      - name: 📋 Verify build output
+        run: |
+          if [ ! -d "help/.vitepress/dist" ]; then
+            echo "❌ Build failed: dist directory not found"
+            exit 1
+          fi
+          echo "✅ Build successful"
+          ls -la help/.vitepress/dist/
+
+      - name: 🚀 Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./help/.vitepress/dist
           publish_branch: gh-pages
+          keep_files: true
+          cname: lr.hosh.dev
+          commit_message: "docs: auto-deploy from ${{ github.sha }}"
+          user_name: "github-actions[bot]"
+          user_email: "github-actions[bot]@users.noreply.github.com"
+
+      - name: ✅ Deployment summary
+        run: |
+          echo "## 🎉 GitHub Pages Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Site URL**: https://lr.hosh.dev" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed at**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
