@@ -29,6 +29,10 @@ public class LiveCore {
     private final Set<UUID> registeredTargets;             // 已注册的目标玩家
     private final Map<UUID, List<UUID>> pendingRequests;   // 待确认的请求（目标UUID -> 录制者UUID列表）
 
+    // 性能优化：缓存机制
+    private final Map<UUID, Long> onlinePlayerCache = new ConcurrentHashMap<>();  // 在线玩家缓存
+    private static final long CACHE_EXPIRY_TIME = 5000;  // 缓存过期时间（5秒）
+
     private BukkitTask followTask;       // 跟随任务
     private BukkitTask autoSwitchTask;   // 自动切换任务
     private BukkitTask actionBarTask;    // ActionBar 显示任务
@@ -131,6 +135,9 @@ public class LiveCore {
         }
         bindings.clear();
         registeredTargets.clear();
+        
+        // 清理缓存
+        clearAllCache();
     }
 
     // ========== 绑定管理 ==========
@@ -144,46 +151,78 @@ public class LiveCore {
      * @return 绑定结果（0=成功，1=已绑定，2=拒绝，3=待确认）
      */
     public int bindRecorder(Player recorder, Player target, RecorderBinding.Mode mode) {
+        // 参数验证
+        if (recorder == null || target == null) {
+            plugin.getLogger().warning("⚠ 绑定失败: 录制者或目标玩家为 null");
+            return -1;
+        }
+        
+        if (!recorder.isOnline() || !target.isOnline()) {
+            plugin.getLogger().warning("⚠ 绑定失败: 玩家不在线 - 录制者: " + 
+                (recorder.isOnline() ? "在线" : "离线") + ", 目标: " + 
+                (target.isOnline() ? "在线" : "离线"));
+            return -1;
+        }
+        
+        if (mode == null) {
+            plugin.getLogger().warning("⚠ 绑定失败: 绑定模式为 null，使用默认模式 AUTO");
+            mode = RecorderBinding.Mode.AUTO;
+        }
+        
         UUID recorderId = recorder.getUniqueId();
         UUID targetId = target.getUniqueId();
 
-        // 检查录制者是否已绑定
-        if (bindings.containsKey(recorderId)) {
-            return 1;
+        try {
+            // 检查录制者是否已绑定
+            if (bindings.containsKey(recorderId)) {
+                plugin.getLogger().info("录制者 " + recorder.getName() + " 已经绑定到其他目标");
+                return 1;
+            }
+
+            // 获取目标玩家的隐私设置
+            PrivacySetting privacy = databaseManager.getPrivacySetting(targetId);
+
+            // 如果隐私设置不存在，创建默认设置
+            if (privacy == null) {
+                privacy = new PrivacySetting(targetId, target.getName());
+                databaseManager.savePrivacySetting(privacy);
+                plugin.getLogger().info("为新玩家 " + target.getName() + " 创建隐私设置");
+            }
+
+            // 检查玩家是否拒绝直播
+            if (privacy.hasDeclined()) {
+                recorder.sendMessage("§6[LiveRecorder] §c玩家 " + target.getName() + " 已拒绝被直播");
+                plugin.getLogger().info("玩家 " + target.getName() + " 拒绝了录制者 " + recorder.getName() + " 的直播请求");
+                return 2;
+            }
+
+            // 如果玩家未设置隐私设置，发送确认请求
+            if (privacy.needsPrompt()) {
+                // 添加到待确认列表
+                pendingRequests.computeIfAbsent(targetId, k -> new ArrayList<>()).add(recorderId);
+
+                // 发送确认请求给目标玩家
+                target.sendMessage("§6[LiveRecorder] §e录制者 " + recorder.getName() + " 请求直播您的视角");
+                target.sendMessage("§6[LiveRecorder] §a输入 /lr accept §7同意直播");
+                target.sendMessage("§6[LiveRecorder] §c输入 /lr decline §7拒绝直播");
+
+                recorder.sendMessage("§6[LiveRecorder] §e已向 " + target.getName() + " 发送直播请求，请等待确认");
+                
+                plugin.getLogger().info("录制者 " + recorder.getName() + " 向 " + target.getName() + " 发送直播请求（待确认）");
+
+                return 3;
+            }
+
+            // 玩家同意直播，执行绑定
+            plugin.getLogger().info("执行绑定: " + recorder.getName() + " -> " + target.getName() + " (模式: " + mode + ")");
+            return executeBind(recorder, target, mode);
+            
+        } catch (Exception e) {
+            plugin.getLogger().severe("✗ 绑定录制者时发生错误: " + e.getMessage());
+            e.printStackTrace();
+            recorder.sendMessage("§6[LiveRecorder] §c绑定失败，请联系管理员");
+            return -1;
         }
-
-        // 获取目标玩家的隐私设置
-        PrivacySetting privacy = databaseManager.getPrivacySetting(targetId);
-
-        // 如果隐私设置不存在，创建默认设置
-        if (privacy == null) {
-            privacy = new PrivacySetting(targetId, target.getName());
-            databaseManager.savePrivacySetting(privacy);
-        }
-
-        // 检查玩家是否拒绝直播
-        if (privacy.hasDeclined()) {
-            recorder.sendMessage("§6[LiveRecorder] §c玩家 " + target.getName() + " 已拒绝被直播");
-            return 2;
-        }
-
-        // 如果玩家未设置隐私设置，发送确认请求
-        if (privacy.needsPrompt()) {
-            // 添加到待确认列表
-            pendingRequests.computeIfAbsent(targetId, k -> new ArrayList<>()).add(recorderId);
-
-            // 发送确认请求给目标玩家
-            target.sendMessage("§6[LiveRecorder] §e录制者 " + recorder.getName() + " 请求直播您的视角");
-            target.sendMessage("§6[LiveRecorder] §a输入 /lr accept §7同意直播");
-            target.sendMessage("§6[LiveRecorder] §c输入 /lr decline §7拒绝直播");
-
-            recorder.sendMessage("§6[LiveRecorder] §e已向 " + target.getName() + " 发送直播请求，请等待确认");
-
-            return 3;
-        }
-
-        // 玩家同意直播，执行绑定
-        return executeBind(recorder, target, mode);
     }
 
     /**
@@ -855,5 +894,63 @@ private void updateAllFollowers() {
      */
     public List<LiveLog> getLiveLogs(int limit) {
         return databaseManager.getLiveLogs(limit);
+    }
+
+    // ========== 性能优化：缓存管理方法 ==========
+
+    /**
+     * 检查玩家是否在线（使用缓存优化）
+     * 
+     * @param playerId 玩家 UUID
+     * @return true 如果玩家在线
+     */
+    private boolean isPlayerOnlineCached(UUID playerId) {
+        Long cacheTime = onlinePlayerCache.get(playerId);
+        long now = System.currentTimeMillis();
+        
+        // 检查缓存是否过期
+        if (cacheTime != null && (now - cacheTime) < CACHE_EXPIRY_TIME) {
+            return true;
+        }
+        
+        // 缓存过期或不存在，重新检查
+        Player player = Bukkit.getPlayer(playerId);
+        boolean online = player != null && player.isOnline();
+        
+        if (online) {
+            onlinePlayerCache.put(playerId, now);
+        } else {
+            onlinePlayerCache.remove(playerId);
+        }
+        
+        return online;
+    }
+
+    /**
+     * 清理过期的缓存
+     * 建议在低峰期定期调用
+     */
+    public void cleanupExpiredCache() {
+        long now = System.currentTimeMillis();
+        onlinePlayerCache.entrySet().removeIf(entry -> 
+            (now - entry.getValue()) >= CACHE_EXPIRY_TIME
+        );
+    }
+
+    /**
+     * 清除所有缓存
+     * 在插件禁用时调用
+     */
+    public void clearAllCache() {
+        onlinePlayerCache.clear();
+    }
+
+    /**
+     * 获取缓存统计信息
+     * 
+     * @return 缓存大小
+     */
+    public int getCacheSize() {
+        return onlinePlayerCache.size();
     }
 }

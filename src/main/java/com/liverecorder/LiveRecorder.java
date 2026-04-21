@@ -34,7 +34,14 @@ public class LiveRecorder extends JavaPlugin {
 
         // 保存默认配置
         saveDefaultConfig();
-        getLogger().info("✓ 配置文件已加载");
+        
+        // 验证配置
+        if (!validateConfig()) {
+            getLogger().severe("✗ 配置验证失败，插件将禁用");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        getLogger().info("✓ 配置文件已加载并验证通过");
 
         // 初始化数据库管理器
         databaseManager = new DatabaseManager(this);
@@ -203,5 +210,126 @@ public class LiveRecorder extends JavaPlugin {
 
     public CameraGeometry getCameraGeometry() {
         return cameraGeometry;
+    }
+
+    /**
+     * 验证配置文件的有效性和合理性
+     * 
+     * @return true 如果配置有效，false 如果存在严重错误
+     */
+    private boolean validateConfig() {
+        boolean isValid = true;
+        
+        // ========== 镜头设置验证 ==========
+        try {
+            double pitch = getConfig().getDouble("camera.pitch", 30.0);
+            if (pitch < 0 || pitch > 90) {
+                getLogger().warning("⚠ 配置警告: camera.pitch (" + pitch + ") 超出范围 [0-90]，已重置为默认值 30.0");
+                getConfig().set("camera.pitch", 30.0);
+                isValid = false;
+            }
+            
+            double distance = getConfig().getDouble("camera.distance", 5.0);
+            if (distance < 1.0 || distance > 20.0) {
+                getLogger().warning("⚠ 配置警告: camera.distance (" + distance + ") 超出推荐范围 [1.0-20.0]，已重置为默认值 5.0");
+                getConfig().set("camera.distance", 5.0);
+                isValid = false;
+            }
+            
+            double heightOffset = getConfig().getDouble("camera.height-offset", 0.0);
+            if (heightOffset < -5.0 || heightOffset > 5.0) {
+                getLogger().warning("⚠ 配置警告: camera.height-offset (" + heightOffset + ") 超出范围 [-5.0-5.0]，已重置为默认值 0.0");
+                getConfig().set("camera.height-offset", 0.0);
+                isValid = false;
+            }
+            
+            double positionSmooth = getConfig().getDouble("camera.position-smooth", 0.12);
+            if (positionSmooth < 0.01 || positionSmooth > 1.0) {
+                getLogger().warning("⚠ 配置警告: camera.position-smooth (" + positionSmooth + ") 超出范围 [0.01-1.0]，已重置为默认值 0.12");
+                getConfig().set("camera.position-smooth", 0.12);
+                isValid = false;
+            }
+            
+            double rotationSmooth = getConfig().getDouble("camera.rotation-smooth", 0.1);
+            if (rotationSmooth < 0.01 || rotationSmooth > 1.0) {
+                getLogger().warning("⚠ 配置警告: camera.rotation-smooth (" + rotationSmooth + ") 超出范围 [0.01-1.0]，已重置为默认值 0.1");
+                getConfig().set("camera.rotation-smooth", 0.1);
+                isValid = false;
+            }
+        } catch (Exception e) {
+            getLogger().severe("✗ 镜头配置验证失败: " + e.getMessage());
+            isValid = false;
+        }
+        
+        // ========== 自动切换设置验证 ==========
+        try {
+            long interval = getConfig().getLong("auto-switch.interval", 30);
+            if (interval < 5 || interval > 300) {
+                getLogger().warning("⚠ 配置警告: auto-switch.interval (" + interval + "秒) 超出推荐范围 [5-300]，已重置为默认值 30");
+                getConfig().set("auto-switch.interval", 30);
+                isValid = false;
+            }
+            
+            String mode = getConfig().getString("auto-switch.mode", "RANDOM");
+            if (!mode.equalsIgnoreCase("RANDOM") && !mode.equalsIgnoreCase("SEQUENTIAL")) {
+                getLogger().warning("⚠ 配置警告: auto-switch.mode (" + mode + ") 无效，已重置为默认值 RANDOM");
+                getConfig().set("auto-switch.mode", "RANDOM");
+                isValid = false;
+            }
+        } catch (Exception e) {
+            getLogger().severe("✗ 自动切换配置验证失败: " + e.getMessage());
+            isValid = false;
+        }
+        
+        // ========== 视觉反馈设置验证 ==========
+        try {
+            String glowColor = getConfig().getString("visual.glow-color", "YELLOW");
+            // 验证颜色是否有效
+            try {
+                org.bukkit.Color.class.getDeclaredField(glowColor.toUpperCase());
+            } catch (NoSuchFieldException e) {
+                getLogger().warning("⚠ 配置警告: visual.glow-color (" + glowColor + ") 不是有效的颜色名称，已重置为默认值 YELLOW");
+                getConfig().set("visual.glow-color", "YELLOW");
+                isValid = false;
+            }
+            
+            int actionbarInterval = getConfig().getInt("visual.actionbar-interval", 20);
+            if (actionbarInterval < 1 || actionbarInterval > 100) {
+                getLogger().warning("⚠ 配置警告: visual.actionbar-interval (" + actionbarInterval + ") 超出范围 [1-100]，已重置为默认值 20");
+                getConfig().set("visual.actionbar-interval", 20);
+                isValid = false;
+            }
+        } catch (Exception e) {
+            getLogger().severe("✗ 视觉反馈配置验证失败: " + e.getMessage());
+            isValid = false;
+        }
+        
+        // ========== 隐私设置验证 ==========
+        try {
+            int keepCount = getConfig().getInt("privacy.live-logs.keep-count", 100);
+            if (keepCount < 10 || keepCount > 1000) {
+                getLogger().warning("⚠ 配置警告: privacy.live-logs.keep-count (" + keepCount + ") 超出推荐范围 [10-1000]，已重置为默认值 100");
+                getConfig().set("privacy.live-logs.keep-count", 100);
+                isValid = false;
+            }
+            
+            long timeout = getConfig().getLong("privacy.consent-prompt.timeout", 60);
+            if (timeout < 10 || timeout > 300) {
+                getLogger().warning("⚠ 配置警告: privacy.consent-prompt.timeout (" + timeout + "秒) 超出范围 [10-300]，已重置为默认值 60");
+                getConfig().set("privacy.consent-prompt.timeout", 60);
+                isValid = false;
+            }
+        } catch (Exception e) {
+            getLogger().severe("✗ 隐私设置验证失败: " + e.getMessage());
+            isValid = false;
+        }
+        
+        // 如果有修改，保存配置
+        if (!isValid) {
+            saveConfig();
+            getLogger().info("✓ 已自动修复无效配置项");
+        }
+        
+        return true; // 即使有警告也允许插件启动
     }
 }
