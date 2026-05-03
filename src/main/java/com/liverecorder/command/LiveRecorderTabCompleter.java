@@ -43,7 +43,7 @@ public class LiveRecorderTabCompleter implements TabCompleter {
             for (String sub : SUB_COMMANDS) {
                 if (sub.startsWith(input)) {
                     // 管理员命令需要权限
-                    if (!playerCommands.contains(sub) || sender.hasPermission("liverecorder.use")) {
+                    if (!playerCommands.contains(sub) || sender.hasPermission("liverecorder.admin")) {
                         completions.add(sub);
                     }
                 }

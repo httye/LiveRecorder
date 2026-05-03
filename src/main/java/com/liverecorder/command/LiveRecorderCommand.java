@@ -37,6 +37,12 @@ public class LiveRecorderCommand implements CommandExecutor {
 
         String subCommand = args[0].toLowerCase();
 
+        // 管理员命令统一鉴权
+        if (isAdminCommand(subCommand) && !sender.hasPermission("liverecorder.admin")) {
+            sender.sendMessage("§6[LiveRecorder] §c你没有权限执行此命令");
+            return true;
+        }
+
         switch (subCommand) {
             case "bind":
                 handleBind(sender, args);
@@ -77,6 +83,16 @@ public class LiveRecorderCommand implements CommandExecutor {
         }
 
         return true;
+    }
+
+    private boolean isAdminCommand(String subCommand) {
+        return "bind".equals(subCommand)
+                || "unbind".equals(subCommand)
+                || "list".equals(subCommand)
+                || "mode".equals(subCommand)
+                || "switch".equals(subCommand)
+                || "reload".equals(subCommand)
+                || "logs".equals(subCommand);
     }
 
     /**
