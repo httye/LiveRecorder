@@ -630,6 +630,43 @@ private void updateAllFollowers() {
         return true;
     }
 
+    /**
+     * 切换录制者绑定模式，并处理模式切换的副作用（隐身/旁观目标）
+     */
+    public boolean switchMode(Player recorder, RecorderBinding.Mode newMode) {
+        RecorderBinding binding = bindings.get(recorder.getUniqueId());
+        if (binding == null || newMode == null) {
+            return false;
+        }
+
+        RecorderBinding.Mode oldMode = binding.getMode();
+        if (oldMode == newMode) {
+            return true;
+        }
+
+        boolean invisibleEnabled = plugin.getConfig().getBoolean("privacy.recorder-invisible.enabled", true);
+
+        // manual/auto -> spectator：取消隐身，切旁观
+        if (newMode == RecorderBinding.Mode.SPECTATOR) {
+            if (oldMode != RecorderBinding.Mode.SPECTATOR && invisibleEnabled) {
+                setRecorderInvisible(recorder, false);
+            }
+            recorder.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            recorder.setSpectatorTarget(null);
+        } else {
+            // spectator -> manual/auto：退出旁观目标，恢复隐身
+            if (oldMode == RecorderBinding.Mode.SPECTATOR) {
+                recorder.setSpectatorTarget(null);
+            }
+            if (invisibleEnabled) {
+                setRecorderInvisible(recorder, true);
+            }
+        }
+
+        binding.setMode(newMode);
+        return true;
+    }
+
     // ========== ActionBar 显示 ==========
 
     /**

@@ -22,7 +22,7 @@ public class LiveRecorderTabCompleter implements TabCompleter {
     );
 
     private static final List<String> MODES = Arrays.asList(
-            "auto", "manual"
+            "auto", "manual", "spectator"
     );
 
     private static final List<String> PRIVACY_STATUS = Arrays.asList(
