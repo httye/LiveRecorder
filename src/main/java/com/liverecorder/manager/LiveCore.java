@@ -391,9 +391,9 @@ public class LiveCore {
      */
     public List<Player> getOnlineTargets() {
         return registeredTargets.stream()
+                .filter(this::isPlayerOnlineCached)
                 .map(Bukkit::getPlayer)
                 .filter(Objects::nonNull)
-                .filter(Player::isOnline)
                 .collect(Collectors.toList());
     }
 
@@ -412,14 +412,16 @@ private void updateAllFollowers() {
             continue;
         }
 
-        // 观察者模式使用原生 spectator 跟随
+        // 无论何种模式都通过镜头几何计算跟随位，保证跟拍一致性
+        // 观察者模式仅保留无碰撞/自由观察能力，不再锁定第一视角。
+        if (binding.getMode() == RecorderBinding.Mode.SPECTATOR && recorder.getSpectatorTarget() != null) {
+            recorder.setSpectatorTarget(null);
+        }
+
         if (binding.getMode() == RecorderBinding.Mode.SPECTATOR) {
             if (recorder.getGameMode() != org.bukkit.GameMode.SPECTATOR) {
                 recorder.setGameMode(org.bukkit.GameMode.SPECTATOR);
             }
-            recorder.setSpectatorTarget(target);
-            binding.setFollowing(true);
-            continue;
         }
 
         // 计算目标相机位置
@@ -427,15 +429,23 @@ private void updateAllFollowers() {
         Location currentLoc = recorder.getLocation();
 
         // 当距离过大时直接传送，避免长时间延迟跟随
-        double distance = currentLoc.distance(cameraTarget);
-        if (distance > 30.0) {
+        if (geometry.needsTeleport(recorder, cameraTarget, 30.0)) {
             recorder.teleport(cameraTarget);
             binding.setFollowing(true);
             continue;
         }
 
         // 使用平滑插值计算中间位置
-        Location smoothed = geometry.calculateSmoothedState(currentLoc, cameraTarget, target);
+        double positionSmooth = plugin.getConfig().getDouble("camera.position-smooth", 0.12);
+        double rotationSmooth = plugin.getConfig().getDouble("camera.rotation-smooth", 0.1);
+
+        // 观察者模式给更柔和的阻尼，避免镜头“僵硬”或突兀。
+        if (binding.getMode() == RecorderBinding.Mode.SPECTATOR) {
+            positionSmooth = Math.max(0.04, positionSmooth * 0.7);
+            rotationSmooth = Math.max(0.04, rotationSmooth * 0.65);
+        }
+
+        Location smoothed = geometry.calculateSmoothedState(currentLoc, cameraTarget, target, positionSmooth, rotationSmooth);
         recorder.teleport(smoothed);
         binding.setFollowing(true);
     }
@@ -637,7 +647,14 @@ private void updateAllFollowers() {
 
             // 录制者 ActionBar：显示跟随状态
             String status = binding.isFollowing() ? "§a● 跟随中" : "§7○ 待机";
-            String modeStr = binding.getMode() == RecorderBinding.Mode.AUTO ? "§e自动" : "§b手动";
+            String modeStr;
+            if (binding.getMode() == RecorderBinding.Mode.AUTO) {
+                modeStr = "§e自动";
+            } else if (binding.getMode() == RecorderBinding.Mode.SPECTATOR) {
+                modeStr = "§d观察者";
+            } else {
+                modeStr = "§b手动";
+            }
 
             String recorderMessage = String.format(
                     "§6LiveRecorder §7| %s §7| 目标: §f%s §7| 模式: %s",

@@ -96,6 +96,14 @@ public class CameraGeometry {
      * @return 平滑后的镜头位置（包含平滑后的朝向）
      */
     public Location calculateSmoothedState(Location current, Location cameraTarget, Player target) {
+        return calculateSmoothedState(current, cameraTarget, target, positionSmooth, rotationSmooth);
+    }
+
+    /**
+     * 计算平滑后的镜头状态（可自定义平滑系数）
+     */
+    public Location calculateSmoothedState(Location current, Location cameraTarget, Player target,
+                                           double positionSmoothFactor, double rotationSmoothFactor) {
         // ===== 1. 位置平滑插值 =====
         double curX = current.getX();
         double curY = current.getY();
@@ -105,9 +113,9 @@ public class CameraGeometry {
         double tgtY = cameraTarget.getY();
         double tgtZ = cameraTarget.getZ();
 
-        double smoothX = curX + (tgtX - curX) * positionSmooth;
-        double smoothY = curY + (tgtY - curY) * positionSmooth;
-        double smoothZ = curZ + (tgtZ - curZ) * positionSmooth;
+        double smoothX = curX + (tgtX - curX) * positionSmoothFactor;
+        double smoothY = curY + (tgtY - curY) * positionSmoothFactor;
+        double smoothZ = curZ + (tgtZ - curZ) * positionSmoothFactor;
 
         // ===== 2. 计算从平滑位置看向目标的方向 =====
         Location targetLoc = target.getLocation();
@@ -120,8 +128,8 @@ public class CameraGeometry {
         float targetPitch = (float) Math.toDegrees(Math.atan2(-toTarget.getY(), horizontalDist));
 
         // ===== 3. 视角平滑插值（处理 360° 环绕） =====
-        float smoothYaw = interpolateAngle(current.getYaw(), targetYaw, (float) rotationSmooth);
-        float smoothPitch = interpolateAngle(current.getPitch(), targetPitch, (float) rotationSmooth);
+        float smoothYaw = interpolateAngle(current.getYaw(), targetYaw, (float) rotationSmoothFactor);
+        float smoothPitch = interpolateAngle(current.getPitch(), targetPitch, (float) rotationSmoothFactor);
 
         // ===== 4. 构建结果 =====
         return new Location(
