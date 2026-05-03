@@ -37,6 +37,12 @@ public class LiveRecorderCommand implements CommandExecutor {
 
         String subCommand = args[0].toLowerCase();
 
+        // 管理员命令统一鉴权
+        if (isAdminCommand(subCommand) && !sender.hasPermission("liverecorder.admin")) {
+            sender.sendMessage("§6[LiveRecorder] §c你没有权限执行此命令");
+            return true;
+        }
+
         switch (subCommand) {
             case "bind":
                 handleBind(sender, args);
@@ -77,6 +83,16 @@ public class LiveRecorderCommand implements CommandExecutor {
         }
 
         return true;
+    }
+
+    private boolean isAdminCommand(String subCommand) {
+        return "bind".equals(subCommand)
+                || "unbind".equals(subCommand)
+                || "list".equals(subCommand)
+                || "mode".equals(subCommand)
+                || "switch".equals(subCommand)
+                || "reload".equals(subCommand)
+                || "logs".equals(subCommand);
     }
 
     /**
@@ -207,7 +223,14 @@ public class LiveRecorderCommand implements CommandExecutor {
         for (RecorderBinding binding : bindings) {
             String recorderName = binding.getRecorder().getName();
             String targetName = binding.getTarget() != null ? binding.getTarget().getName() : "§c无";
-            String mode = binding.getMode() == RecorderBinding.Mode.AUTO ? "§e自动" : "§b手动";
+            String mode;
+            if (binding.getMode() == RecorderBinding.Mode.AUTO) {
+                mode = "§e自动";
+            } else if (binding.getMode() == RecorderBinding.Mode.SPECTATOR) {
+                mode = "§d观察者";
+            } else {
+                mode = "§b手动";
+            }
             String status = binding.isActive() ? "§a活跃" : "§c暂停";
 
             sender.sendMessage(String.format(
@@ -225,7 +248,7 @@ public class LiveRecorderCommand implements CommandExecutor {
      */
     private void handleMode(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage("§6[LiveRecorder] §c用法: /lr mode <录制者> <auto|manual>");
+            sender.sendMessage("§6[LiveRecorder] §c用法: /lr mode <录制者> <auto|manual|spectator>");
             return;
         }
 
@@ -247,12 +270,15 @@ public class LiveRecorderCommand implements CommandExecutor {
         try {
             mode = RecorderBinding.Mode.valueOf(args[2].toUpperCase());
         } catch (IllegalArgumentException e) {
-            sender.sendMessage("§6[LiveRecorder] §c无效的模式: " + args[2] + "，可选: auto, manual");
+            sender.sendMessage("§6[LiveRecorder] §c无效的模式: " + args[2] + "，可选: auto, manual, spectator");
             return;
         }
 
-        RecorderBinding binding = liveCore.getBinding(recorder);
-        binding.setMode(mode);
+        boolean success = liveCore.switchMode(recorder, mode);
+        if (!success) {
+            sender.sendMessage("§6[LiveRecorder] §c模式切换失败");
+            return;
+        }
 
         sender.sendMessage("§6[LiveRecorder] §a录制者 §f" + recorder.getName() + " §a的模式已切换为: §e" + mode.name());
         recorder.sendMessage("§6[LiveRecorder] §a你的跟随模式已切换为: §e" + mode.name());
@@ -319,7 +345,7 @@ public class LiveRecorderCommand implements CommandExecutor {
         sender.sendMessage("§e/lr bind <录制者> <目标> [auto|manual|spectator] §7- 绑定录制者");
         sender.sendMessage("§e/lr unbind <录制者> §7- 解除录制者绑定");
         sender.sendMessage("§e/lr list §7- 列出所有绑定");
-        sender.sendMessage("§e/lr mode <录制者> <auto|manual> §7- 切换绑定模式");
+        sender.sendMessage("§e/lr mode <录制者> <auto|manual|spectator> §7- 切换绑定模式");
         sender.sendMessage("§e/lr switch <录制者> <新目标> §7- 手动切换目标");
         sender.sendMessage("§e/lr reload §7- 重载配置");
         sender.sendMessage("§e/lr accept §7- 同意直播请求");

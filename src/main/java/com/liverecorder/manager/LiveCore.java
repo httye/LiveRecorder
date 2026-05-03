@@ -27,7 +27,7 @@ public class LiveCore {
     private final DatabaseManager databaseManager;
     private final Map<UUID, RecorderBinding> bindings;    // 录制者UUID -> 绑定
     private final Set<UUID> registeredTargets;             // 已注册的目标玩家
-    private final Map<UUID, List<UUID>> pendingRequests;   // 待确认的请求（目标UUID -> 录制者UUID列表）
+    private final Map<UUID, Set<UUID>> pendingRequests;    // 待确认的请求（目标UUID -> 录制者UUID集合）
 
     // 性能优化：缓存机制
     private final Map<UUID, Long> onlinePlayerCache = new ConcurrentHashMap<>();  // 在线玩家缓存
@@ -199,7 +199,7 @@ public class LiveCore {
             // 如果玩家未设置隐私设置，发送确认请求
             if (privacy.needsPrompt()) {
                 // 添加到待确认列表
-                pendingRequests.computeIfAbsent(targetId, k -> new ArrayList<>()).add(recorderId);
+                pendingRequests.computeIfAbsent(targetId, k -> ConcurrentHashMap.newKeySet()).add(recorderId);
 
                 // 发送确认请求给目标玩家
                 target.sendMessage("§6[LiveRecorder] §e录制者 " + recorder.getName() + " 请求直播您的视角");
@@ -391,9 +391,9 @@ public class LiveCore {
      */
     public List<Player> getOnlineTargets() {
         return registeredTargets.stream()
+                .filter(this::isPlayerOnlineCached)
                 .map(Bukkit::getPlayer)
                 .filter(Objects::nonNull)
-                .filter(Player::isOnline)
                 .collect(Collectors.toList());
     }
 
@@ -412,14 +412,16 @@ private void updateAllFollowers() {
             continue;
         }
 
-        // 观察者模式使用原生 spectator 跟随
+        // 无论何种模式都通过镜头几何计算跟随位，保证跟拍一致性
+        // 观察者模式仅保留无碰撞/自由观察能力，不再锁定第一视角。
+        if (binding.getMode() == RecorderBinding.Mode.SPECTATOR && recorder.getSpectatorTarget() != null) {
+            recorder.setSpectatorTarget(null);
+        }
+
         if (binding.getMode() == RecorderBinding.Mode.SPECTATOR) {
             if (recorder.getGameMode() != org.bukkit.GameMode.SPECTATOR) {
                 recorder.setGameMode(org.bukkit.GameMode.SPECTATOR);
             }
-            recorder.setSpectatorTarget(target);
-            binding.setFollowing(true);
-            continue;
         }
 
         // 计算目标相机位置
@@ -427,15 +429,23 @@ private void updateAllFollowers() {
         Location currentLoc = recorder.getLocation();
 
         // 当距离过大时直接传送，避免长时间延迟跟随
-        double distance = currentLoc.distance(cameraTarget);
-        if (distance > 30.0) {
+        if (geometry.needsTeleport(recorder, cameraTarget, 30.0)) {
             recorder.teleport(cameraTarget);
             binding.setFollowing(true);
             continue;
         }
 
         // 使用平滑插值计算中间位置
-        Location smoothed = geometry.calculateSmoothedState(currentLoc, cameraTarget, target);
+        double positionSmooth = plugin.getConfig().getDouble("camera.position-smooth", 0.12);
+        double rotationSmooth = plugin.getConfig().getDouble("camera.rotation-smooth", 0.1);
+
+        // 观察者模式给更柔和的阻尼，避免镜头“僵硬”或突兀。
+        if (binding.getMode() == RecorderBinding.Mode.SPECTATOR) {
+            positionSmooth = Math.max(0.04, positionSmooth * 0.7);
+            rotationSmooth = Math.max(0.04, rotationSmooth * 0.65);
+        }
+
+        Location smoothed = geometry.calculateSmoothedState(currentLoc, cameraTarget, target, positionSmooth, rotationSmooth);
         recorder.teleport(smoothed);
         binding.setFollowing(true);
     }
@@ -620,6 +630,43 @@ private void updateAllFollowers() {
         return true;
     }
 
+    /**
+     * 切换录制者绑定模式，并处理模式切换的副作用（隐身/旁观目标）
+     */
+    public boolean switchMode(Player recorder, RecorderBinding.Mode newMode) {
+        RecorderBinding binding = bindings.get(recorder.getUniqueId());
+        if (binding == null || newMode == null) {
+            return false;
+        }
+
+        RecorderBinding.Mode oldMode = binding.getMode();
+        if (oldMode == newMode) {
+            return true;
+        }
+
+        boolean invisibleEnabled = plugin.getConfig().getBoolean("privacy.recorder-invisible.enabled", true);
+
+        // manual/auto -> spectator：取消隐身，切旁观
+        if (newMode == RecorderBinding.Mode.SPECTATOR) {
+            if (oldMode != RecorderBinding.Mode.SPECTATOR && invisibleEnabled) {
+                setRecorderInvisible(recorder, false);
+            }
+            recorder.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            recorder.setSpectatorTarget(null);
+        } else {
+            // spectator -> manual/auto：退出旁观目标，恢复隐身
+            if (oldMode == RecorderBinding.Mode.SPECTATOR) {
+                recorder.setSpectatorTarget(null);
+            }
+            if (invisibleEnabled) {
+                setRecorderInvisible(recorder, true);
+            }
+        }
+
+        binding.setMode(newMode);
+        return true;
+    }
+
     // ========== ActionBar 显示 ==========
 
     /**
@@ -637,7 +684,14 @@ private void updateAllFollowers() {
 
             // 录制者 ActionBar：显示跟随状态
             String status = binding.isFollowing() ? "§a● 跟随中" : "§7○ 待机";
-            String modeStr = binding.getMode() == RecorderBinding.Mode.AUTO ? "§e自动" : "§b手动";
+            String modeStr;
+            if (binding.getMode() == RecorderBinding.Mode.AUTO) {
+                modeStr = "§e自动";
+            } else if (binding.getMode() == RecorderBinding.Mode.SPECTATOR) {
+                modeStr = "§d观察者";
+            } else {
+                modeStr = "§b手动";
+            }
 
             String recorderMessage = String.format(
                     "§6LiveRecorder §7| %s §7| 目标: §f%s §7| 模式: %s",
@@ -769,7 +823,7 @@ private void updateAllFollowers() {
      */
     public boolean acceptStreaming(Player player) {
         UUID playerId = player.getUniqueId();
-        List<UUID> requesters = pendingRequests.remove(playerId);
+        Set<UUID> requesters = pendingRequests.remove(playerId);
 
         if (requesters == null || requesters.isEmpty()) {
             return false;
@@ -816,7 +870,7 @@ private void updateAllFollowers() {
      */
     public boolean declineStreaming(Player player) {
         UUID playerId = player.getUniqueId();
-        List<UUID> requesters = pendingRequests.remove(playerId);
+        Set<UUID> requesters = pendingRequests.remove(playerId);
 
         if (requesters == null || requesters.isEmpty()) {
             return false;
