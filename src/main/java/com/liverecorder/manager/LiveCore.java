@@ -27,7 +27,7 @@ public class LiveCore {
     private final DatabaseManager databaseManager;
     private final Map<UUID, RecorderBinding> bindings;    // 录制者UUID -> 绑定
     private final Set<UUID> registeredTargets;             // 已注册的目标玩家
-    private final Map<UUID, List<UUID>> pendingRequests;   // 待确认的请求（目标UUID -> 录制者UUID列表）
+    private final Map<UUID, Set<UUID>> pendingRequests;    // 待确认的请求（目标UUID -> 录制者UUID集合）
 
     // 性能优化：缓存机制
     private final Map<UUID, Long> onlinePlayerCache = new ConcurrentHashMap<>();  // 在线玩家缓存
@@ -199,7 +199,7 @@ public class LiveCore {
             // 如果玩家未设置隐私设置，发送确认请求
             if (privacy.needsPrompt()) {
                 // 添加到待确认列表
-                pendingRequests.computeIfAbsent(targetId, k -> new ArrayList<>()).add(recorderId);
+                pendingRequests.computeIfAbsent(targetId, k -> ConcurrentHashMap.newKeySet()).add(recorderId);
 
                 // 发送确认请求给目标玩家
                 target.sendMessage("§6[LiveRecorder] §e录制者 " + recorder.getName() + " 请求直播您的视角");
@@ -823,7 +823,7 @@ private void updateAllFollowers() {
      */
     public boolean acceptStreaming(Player player) {
         UUID playerId = player.getUniqueId();
-        List<UUID> requesters = pendingRequests.remove(playerId);
+        Set<UUID> requesters = pendingRequests.remove(playerId);
 
         if (requesters == null || requesters.isEmpty()) {
             return false;
@@ -870,7 +870,7 @@ private void updateAllFollowers() {
      */
     public boolean declineStreaming(Player player) {
         UUID playerId = player.getUniqueId();
-        List<UUID> requesters = pendingRequests.remove(playerId);
+        Set<UUID> requesters = pendingRequests.remove(playerId);
 
         if (requesters == null || requesters.isEmpty()) {
             return false;
